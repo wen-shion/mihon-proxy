@@ -27,9 +27,15 @@ data class ProxyEndpoint(
     /**
      * Converts this endpoint into the [Proxy] the HTTP client can route through.
      *
-     * The socket address is left unresolved on purpose. Resolving it here would perform a DNS
-     * lookup on the caller's thread before the proxy gets a chance to resolve the target itself,
-     * and keeping it unresolved is what allows a SOCKS endpoint to keep remote DNS resolution.
+     * The address is left unresolved on purpose, but the reason is narrow: [Proxy.address] is the
+     * address of the **proxy server**, and building it unresolved keeps a caller such as a
+     * [java.net.ProxySelector] from blocking on a resolution of that host merely to describe the
+     * proxy. The proxy host may still be resolved later, when a connection to it is attempted.
+     *
+     * This says nothing about how the **target** host is resolved — that is a separate concern
+     * decided by OkHttp's route selection, not by this type. In particular, an unresolved proxy
+     * address is not what gives a SOCKS route remote DNS for the target, and nothing here
+     * constitutes a DNS-leak guarantee.
      */
     fun toProxy(): Proxy = Proxy(
         when (type) {

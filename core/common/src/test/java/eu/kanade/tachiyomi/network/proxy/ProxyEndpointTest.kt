@@ -23,8 +23,12 @@ class ProxyEndpointTest {
         assertEquals(Proxy.Type.SOCKS, proxy.type())
     }
 
+    /**
+     * Asserts a property of the value this type builds, not a DNS behaviour: whether the target
+     * host is resolved locally is decided by OkHttp's route selection. This is not a DNS-leak test.
+     */
     @Test
-    fun `keeps the proxy address unresolved so no lookup happens up front`() {
+    fun `keeps the proxy server address unresolved`() {
         val address = ProxyEndpoint(ProxyEndpoint.Type.HTTP, "proxy.example.com", 8080)
             .toProxy()
             .address() as InetSocketAddress
