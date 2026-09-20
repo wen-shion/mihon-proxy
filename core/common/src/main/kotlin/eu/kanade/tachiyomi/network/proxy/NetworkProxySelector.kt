@@ -29,19 +29,35 @@ import java.net.URI
  * [ProxyEndpointState.Unavailable] throws [ProxyUnavailableException] instead of falling back.
  * Traffic that was asked to go through a tunnel must fail rather than leave untunnelled.
  *
- * ## Failure attribution
+ * ## Failure attribution, and its capability boundary
  *
- * [connectFailed] does not forward blindly. A failure of an endpoint this selector handed out is
- * withheld from `fallback`, because the platform selector never chose that endpoint and would
- * otherwise record our failure against its own configuration. While the proxy is disabled the
- * notification is forwarded untouched, and so is anything that cannot be tied to our endpoint —
- * attribution is conservative, see [isOwnEndpointAddress].
+ * [ProxySelector.connectFailed] reports only `(uri, socketAddress, exception)`. It carries **no**
+ * connection identity, no route identity and no timing, so a failure cannot be tied to a particular
+ * past [select] call. Attribution is therefore made by **provenance of the address**: the selector
+ * remembers which addresses it handed out itself and which ones it observed from the platform
+ * selector, and reports a failure onward only when the address is known to have come from the
+ * platform.
+ *
+ * The current proxy state is deliberately **not** consulted. A connection attempted through a
+ * previous endpoint can fail after the endpoint was switched, after the proxy became
+ * [ProxyEndpointState.Unavailable], or after it was turned off, and such a failure belongs to this
+ * selector no matter what the state is now.
+ *
+ * Consequences of the boundary, all erring towards *not* blaming the platform selector:
+ *
+ * - a failure with no address at all is not reported onward;
+ * - a failure for an address never observed from either selector is not reported onward;
+ * - provenance is remembered in bounded sets (see [CONNECT_FAILURE_RECORD_CAPACITY]); if an address
+ *   is ever evicted, its failures stop being reported onward rather than being misattributed.
+ *
+ * Addresses never reach this stage for direct connections: OkHttp skips `connectFailed` entirely
+ * when the failed route's proxy is of type `DIRECT`.
  *
  * ## Wiring status
  *
  * This class is **not installed** into [eu.kanade.tachiyomi.network.NetworkHelper] yet. It is
- * introduced together with its test, which pins down the equivalence above, so that a later phase
- * can install it without changing default network behaviour.
+ * introduced together with its test, which pins down the behaviour above, so that a later phase can
+ * install it without changing default network behaviour.
  */
 class NetworkProxySelector internal constructor(
     private val source: ProxyEndpointSource,
@@ -51,44 +67,85 @@ class NetworkProxySelector internal constructor(
     /** Creates a selector that keeps the platform default behaviour whenever [source] is disabled. */
     constructor(source: ProxyEndpointSource) : this(source, systemProxySelector())
 
+    private val addressesWeSupplied = BoundedAddressSet(CONNECT_FAILURE_RECORD_CAPACITY)
+
+    private val addressesFromPlatform = BoundedAddressSet(CONNECT_FAILURE_RECORD_CAPACITY)
+
     override fun select(uri: URI?): List<Proxy> {
         requireNotNull(uri) { "uri must not be null" }
 
         return when (val state = source.state()) {
-            ProxyEndpointState.Disabled ->
+            ProxyEndpointState.Disabled -> {
                 // Delegate verbatim. A `null` result is normalised the same way OkHttp normalises
                 // it, so a misbehaving delegate cannot turn into an unintended direct connection.
-                fallback.select(uri) ?: DirectProxySelector.select(uri)
+                val proxies = fallback.select(uri) ?: DirectProxySelector.select(uri)
+                proxies.forEach { proxy ->
+                    if (proxy.type() != Proxy.Type.DIRECT) {
+                        proxy.address()?.let(addressesFromPlatform::add)
+                    }
+                }
+                proxies
+            }
 
-            is ProxyEndpointState.Available -> listOf(state.endpoint.toProxy())
+            is ProxyEndpointState.Available -> {
+                val proxy = state.endpoint.toProxy()
+                addressesWeSupplied.add(proxy.address())
+                listOf(proxy)
+            }
 
             ProxyEndpointState.Unavailable -> throw ProxyUnavailableException()
         }
     }
 
     override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
-        if (isOwnEndpointAddress(sa)) {
-            // The failure belongs to an endpoint this selector supplied. The platform selector did
-            // not choose it, so reporting it there would attribute our failure to its configuration.
-            return
-        }
-        fallback.connectFailed(uri, sa, ioe)
-    }
+        // No address means no provenance, so there is no evidence that the platform selector is
+        // responsible. Conservative: withhold it.
+        if (sa == null) return
 
-    /**
-     * Whether [address] is the address of the endpoint this selector is currently serving.
-     *
-     * Attribution is deliberately conservative: only a failure that can be tied to our own endpoint
-     * is withheld. A failure reported for an address we cannot recognise — including a stale
-     * endpoint address after a configuration change, or no address at all — is forwarded, because
-     * we cannot prove it was ours.
-     */
-    private fun isOwnEndpointAddress(address: SocketAddress?): Boolean {
-        if (address == null) return false
-        val state = source.state()
-        return state is ProxyEndpointState.Available && address == state.endpoint.toProxy().address()
+        // The connection went through an endpoint this selector handed out, whatever the current
+        // state is by now. The platform selector never chose it, so it must not be told about it.
+        if (addressesWeSupplied.contains(sa)) return
+
+        if (addressesFromPlatform.contains(sa)) {
+            fallback.connectFailed(uri, sa, ioe)
+        }
+        // Otherwise the address is of unknown provenance. "Not ours" is not evidence that it is the
+        // platform's, so it is withheld rather than blamed on the platform selector.
     }
 }
+
+/**
+ * Remembers the last [capacity] distinct addresses added to it, forgetting the oldest first.
+ *
+ * Both [add] and [contains] are safe to call from the threads OkHttp uses for route selection and
+ * for connect failures, which are not the same thread.
+ */
+private class BoundedAddressSet(private val capacity: Int) {
+
+    private val members = HashSet<SocketAddress>()
+
+    private val insertionOrder = ArrayDeque<SocketAddress>()
+
+    @Synchronized
+    fun add(address: SocketAddress) {
+        if (!members.add(address)) return
+        insertionOrder.addLast(address)
+        if (insertionOrder.size > capacity) {
+            members.remove(insertionOrder.removeFirst())
+        }
+    }
+
+    @Synchronized
+    fun contains(address: SocketAddress): Boolean = address in members
+}
+
+/**
+ * How many addresses of each provenance are remembered for failure attribution.
+ *
+ * The realistic population is one endpoint plus a handful of platform proxies, so the cap exists
+ * only to bound memory, not to model a connection pool.
+ */
+private const val CONNECT_FAILURE_RECORD_CAPACITY = 64
 
 /**
  * Thrown when a proxy is active but no endpoint can be served.

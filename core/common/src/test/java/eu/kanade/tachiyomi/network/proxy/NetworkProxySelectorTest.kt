@@ -14,11 +14,15 @@ import java.net.SocketAddress
 import java.net.URI
 
 /**
- * Pins down two properties of [NetworkProxySelector]:
+ * Pins down three properties of [NetworkProxySelector]:
  *
  * - while the proxy is disabled it must be indistinguishable from not installing a selector at all;
  * - while a proxy is enabled but unavailable it must fail rather than fall back to the platform
- *   selector or to a direct connection.
+ *   selector or to a direct connection;
+ * - a connect failure is attributed by the **provenance of its address**, never by the current proxy
+ *   state, so an endpoint's failure is not handed to the platform selector even when the endpoint
+ *   has since been switched, become unavailable, or been turned off — and a failure whose
+ *   provenance is unknown is withheld rather than blamed on the platform selector.
  */
 class NetworkProxySelectorTest {
 
@@ -27,6 +31,8 @@ class NetworkProxySelectorTest {
     private val systemProxy = Proxy(Proxy.Type.HTTP, InetSocketAddress.createUnresolved("system-proxy", 3128))
 
     private val localEndpoint = ProxyEndpoint(ProxyEndpoint.Type.SOCKS5, "127.0.0.1", 1080)
+
+    private val secondEndpoint = ProxyEndpoint(ProxyEndpoint.Type.SOCKS5, "127.0.0.1", 1081)
 
     @Test
     fun `uses the configured endpoint when the source has one`() {
@@ -108,23 +114,28 @@ class NetworkProxySelectorTest {
     }
 
     @Test
-    fun `reports a failure to the fallback selector when the proxy is disabled`() {
-        val fallback = RecordingProxySelector()
+    fun `reports a platform failure to the platform selector`() {
+        val fallback = RecordingProxySelector(selected = listOf(systemProxy))
         val selector = NetworkProxySelector({ ProxyEndpointState.Disabled }, fallback)
+        selector.select(requestUri)
 
-        selector.connectFailed(requestUri, systemProxy.address(), IOException("connection refused"))
+        // A freshly built but equal address: provenance must match by value, not by identity.
+        selector.connectFailed(
+            requestUri,
+            InetSocketAddress.createUnresolved("system-proxy", 3128),
+            IOException("connection refused"),
+        )
 
         assertEquals(listOf(requestUri), fallback.failedUris)
     }
 
     @Test
-    fun `does not report its own endpoint's failure to the fallback selector`() {
+    fun `does not report its own endpoint's failure to the platform selector`() {
         val fallback = RecordingProxySelector()
         val selector = NetworkProxySelector({ ProxyEndpointState.Available(localEndpoint) }, fallback)
-        // A freshly built address: attribution must match by value, not by instance identity.
-        val refusedByOurEndpoint = localEndpoint.toProxy().address()
+        selector.select(requestUri)
 
-        selector.connectFailed(requestUri, refusedByOurEndpoint, IOException("connection refused"))
+        selector.connectFailed(requestUri, localEndpoint.toProxy().address(), IOException("connection refused"))
 
         assertTrue(
             fallback.failedUris.isEmpty(),
@@ -133,24 +144,78 @@ class NetworkProxySelectorTest {
     }
 
     @Test
-    fun `reports a failure it cannot attribute to its own endpoint`() {
+    fun `does not report the previous endpoint after the endpoint switched`() {
         val fallback = RecordingProxySelector()
-        val selector = NetworkProxySelector({ ProxyEndpointState.Available(localEndpoint) }, fallback)
-        val someOtherAddress = InetSocketAddress.createUnresolved("elsewhere", 9999)
+        var state: ProxyEndpointState = ProxyEndpointState.Available(localEndpoint)
+        val selector = NetworkProxySelector({ state }, fallback)
+        selector.select(requestUri)
 
-        selector.connectFailed(requestUri, someOtherAddress, IOException("connection refused"))
+        state = ProxyEndpointState.Available(secondEndpoint)
+        selector.select(requestUri)
 
-        assertEquals(listOf(requestUri), fallback.failedUris)
+        selector.connectFailed(requestUri, localEndpoint.toProxy().address(), IOException("connection refused"))
+
+        assertTrue(fallback.failedUris.isEmpty(), "a switched endpoint does not make the old failure the platform's")
     }
 
     @Test
-    fun `reports a failure that carries no address`() {
+    fun `does not report the previous endpoint after the proxy became unavailable`() {
+        val fallback = RecordingProxySelector()
+        var state: ProxyEndpointState = ProxyEndpointState.Available(localEndpoint)
+        val selector = NetworkProxySelector({ state }, fallback)
+        selector.select(requestUri)
+
+        state = ProxyEndpointState.Unavailable
+
+        selector.connectFailed(requestUri, localEndpoint.toProxy().address(), IOException("connection refused"))
+
+        assertTrue(
+            fallback.failedUris.isEmpty(),
+            "becoming unavailable does not transfer our past failures to the platform selector",
+        )
+    }
+
+    @Test
+    fun `does not report the previous endpoint after the proxy was disabled`() {
+        val fallback = RecordingProxySelector()
+        var state: ProxyEndpointState = ProxyEndpointState.Available(localEndpoint)
+        val selector = NetworkProxySelector({ state }, fallback)
+        selector.select(requestUri)
+
+        state = ProxyEndpointState.Disabled
+
+        selector.connectFailed(requestUri, localEndpoint.toProxy().address(), IOException("connection refused"))
+
+        assertTrue(
+            fallback.failedUris.isEmpty(),
+            "turning the proxy off does not transfer its past failures to the platform selector",
+        )
+    }
+
+    @Test
+    fun `does not report a failure of unknown provenance`() {
         val fallback = RecordingProxySelector()
         val selector = NetworkProxySelector({ ProxyEndpointState.Available(localEndpoint) }, fallback)
+        selector.select(requestUri)
+
+        selector.connectFailed(
+            requestUri,
+            InetSocketAddress.createUnresolved("never-observed", 9999),
+            IOException("connection refused"),
+        )
+
+        assertTrue(fallback.failedUris.isEmpty(), "not being ours is not evidence of being the platform's")
+    }
+
+    @Test
+    fun `does not report a failure that carries no address`() {
+        val fallback = RecordingProxySelector()
+        val selector = NetworkProxySelector({ ProxyEndpointState.Available(localEndpoint) }, fallback)
+        selector.select(requestUri)
 
         selector.connectFailed(requestUri, null, IOException("connection refused"))
 
-        assertEquals(listOf(requestUri), fallback.failedUris)
+        assertTrue(fallback.failedUris.isEmpty(), "no address means no provenance to attribute")
     }
 
     @Test
