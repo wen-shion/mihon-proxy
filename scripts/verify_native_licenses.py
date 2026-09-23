@@ -402,7 +402,10 @@ def main() -> int:
 
     if args.write:
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
-        args.manifest.write_text(json.dumps(actual, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        # newline="" keeps the file LF-only on every platform: the manifest is a committed
+        # artifact and must not differ between Windows and CI checkouts.
+        with args.manifest.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(actual, indent=2, sort_keys=False) + "\n")
         print(f"WROTE {args.manifest}")
         return 0
 
