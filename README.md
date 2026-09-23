@@ -47,6 +47,44 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 Before reporting a new issue, take a look at the [FAQ](https://mihon.app/docs/faq/general), the [changelog](https://mihon.app/changelogs/) and the already opened [issues](https://github.com/mihonapp/mihon/issues); if you got any questions, join our [Discord server](https://discord.gg/mihon).
 
 
+## Building from source
+
+This fork embeds a VLESS + REALITY core ([XTLS/libXray](https://github.com/XTLS/libXray)) as a native
+Android library. That artifact is **not committed** to this repository, so fetch and verify it once
+before building:
+
+```bash
+python scripts/fetch_libxray.py            # download the pinned release and check its SHA-256
+python scripts/verify_native_licenses.py   # re-check the Go dependency inventory of the artifact
+```
+
+The build fails at configuration time with an explanatory message while the artifact is missing. That
+failure is deliberate: it must not degrade into an obscure "unresolved reference" later.
+
+* Release artefacts target **`arm64-v8a` only**. Development builds can add the `x86_64` slice for an
+  emulator with `-PproxyDevAbiX86_64`.
+* The native library **keeps its debug symbols on purpose** (see the `keepDebugSymbols` note in
+  `app/build.gradle.kts`).
+
+### Native dependencies and licensing
+
+The APK statically links components licensed under **GPL-3.0-or-later**
+(`github.com/sagernet/sing`, `github.com/sagernet/sing-shadowsocks`, both pulled in by Xray-core
+itself), together with MPL-2.0 (Xray-core, REALITY) and permissive dependencies. The inventory is
+machine-verified against the embedded Go build info of the pinned artifact and recorded in
+[`licenses/native-dependencies.json`](./licenses/native-dependencies.json); a readable summary is in
+[`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md), and the verification method is described in
+[`licenses/README.md`](./licenses/README.md).
+
+Consequences:
+
+* Building and running this source tree for personal use is unaffected.
+* **Distributing a binary that contains the native core makes the whole work subject to
+  GPL-3.0-or-later**, including the corresponding-source obligation.
+* Public APK distribution from this repository is therefore
+  **`NOT APPROVED YET - requires GPLv3 distribution/compliance review before first public binary release.`**
+
+
 ### Repositories
 
 [![mihonapp/website - GitHub](https://github-stats-extended.vercel.app/api/pin/?username=mihonapp&repo=website&bg_color=161B22&text_color=c9d1d9&title_color=0877d2&icon_color=0877d2&border_radius=8&hide_border=true&description_lines_count=2)](https://github.com/mihonapp/website/)

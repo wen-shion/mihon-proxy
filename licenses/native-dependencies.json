@@ -1,0 +1,689 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "name": "libXRay.aar",
+    "sha256": "cd6bd2f5287d23f3648910d8bdf80a4bd7f1fd8f74e6303975a7541f4bcbf8eb",
+    "expectedSha256": "cd6bd2f5287d23f3648910d8bdf80a4bd7f1fd8f74e6303975a7541f4bcbf8eb",
+    "aarSizeBytes": 97878333,
+    "nativeLibrary": "jni/arm64-v8a/libgojni.so",
+    "nativeLibraryBytes": 70624472,
+    "nativeLibrarySha256": "a5c93b095a957ce9d727815116314f5229b55a0438e406d1f328c418456084f3",
+    "libxrayTag": "v26.9.9",
+    "libxrayCommit": "50b95979f5db551bd273165cf469e5daaf791341",
+    "xrayCoreCommit": "52a412d9e2f5c2a5142b1b4e2ab3771dacb8b120"
+  },
+  "method": {
+    "inventory": "go version -m <libgojni.so> (embedded Go build info) - primary source",
+    "targetGraph": "go list -deps for GOOS=android GOARCH=arm64 - used to justify not-linked",
+    "linkage": "llvm-nm --defined-only -C - positive evidence only, never proof of exclusion",
+    "policy": "every module in the build info is treated as shipped unless it is absent from the android/arm64 dependency graph"
+  },
+  "moduleCount": 54,
+  "modules": [
+    {
+      "module": "github.com/andybalholm/brotli",
+      "version": "v1.0.6",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1084 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "79 defined symbol(s) match the module path",
+      "symbolHits": 79,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/apernet/quic-go",
+      "version": "v0.61.1-0.20260806010916-184d081eef3e",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1091 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "2309 defined symbol(s) match the module path",
+      "symbolHits": 2309,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/cloudflare/circl",
+      "version": "v1.6.5",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (3028 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "152 defined symbol(s) match the module path",
+      "symbolHits": 152,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/ghodss/yaml",
+      "version": "v1.0.1-0.20220118164431-d8423dcdf344",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (2557 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "28 defined symbol(s) match the module path",
+      "symbolHits": 28,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/google/btree",
+      "version": "v1.1.2",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (11358 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "74 defined symbol(s) match the module path",
+      "symbolHits": 74,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/google/gopacket",
+      "version": "v1.1.19",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1555 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "no matching symbol, but the module IS in the android/arm64 dependency graph; a zero symbol hit is not evidence of exclusion - treated as shipped",
+      "symbolHits": 0,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/google/uuid",
+      "version": "v1.6.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1480 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "50 defined symbol(s) match the module path",
+      "symbolHits": 50,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/gorilla/websocket",
+      "version": "v1.5.3",
+      "spdx": "BSD-2-Clause",
+      "licenceEvidence": "LICENSE (1312 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "177 defined symbol(s) match the module path",
+      "symbolHits": 177,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/huin/goupnp",
+      "version": "v1.2.0",
+      "spdx": "BSD-2-Clause",
+      "licenceEvidence": "LICENSE (1321 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "309 defined symbol(s) match the module path",
+      "symbolHits": 309,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/jackpal/go-nat-pmp",
+      "version": "v1.0.2",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (591 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "8 defined symbol(s) match the module path",
+      "symbolHits": 8,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/juju/ratelimit",
+      "version": "v1.0.2",
+      "spdx": "LGPL-3.0",
+      "licenceEvidence": "LICENSE (9025 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "24 defined symbol(s) match the module path",
+      "symbolHits": 24,
+      "obligations": [
+        "attribution",
+        "relinking-or-static-linking-exception"
+      ]
+    },
+    {
+      "module": "github.com/klauspost/compress",
+      "version": "v1.17.4",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (16733 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "183 defined symbol(s) match the module path",
+      "symbolHits": 183,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/klauspost/cpuid/v2",
+      "version": "v2.4.0",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1078 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "46 defined symbol(s) match the module path",
+      "symbolHits": 46,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/koron/go-ssdp",
+      "version": "v0.0.4",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1105 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "39 defined symbol(s) match the module path",
+      "symbolHits": 39,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/libp2p/go-nat",
+      "version": "v1.0.1-0.20250821073202-01afc089f138",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (10273 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "45 defined symbol(s) match the module path",
+      "symbolHits": 45,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/libp2p/go-netroute",
+      "version": "v0.2.1",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1607 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "13 defined symbol(s) match the module path",
+      "symbolHits": 13,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/metacubex/age",
+      "version": "v0.0.0-20260603010618-28d156b4ea78",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1516 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "81 defined symbol(s) match the module path",
+      "symbolHits": 81,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/metacubex/hkdf",
+      "version": "v0.1.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1452 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "8 defined symbol(s) match the module path",
+      "symbolHits": 8,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/metacubex/hpke",
+      "version": "v0.1.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1452 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "65 defined symbol(s) match the module path",
+      "symbolHits": 65,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/metacubex/mlkem",
+      "version": "v0.1.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1452 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "52 defined symbol(s) match the module path",
+      "symbolHits": 52,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/miekg/dns",
+      "version": "v1.1.73",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1568 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "1012 defined symbol(s) match the module path",
+      "symbolHits": 1012,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pelletier/go-toml",
+      "version": "v1.9.5",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (13387 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "234 defined symbol(s) match the module path",
+      "symbolHits": 234,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pion/dtls/v3",
+      "version": "v3.1.5",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1093 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "3 defined symbol(s) match the module path",
+      "symbolHits": 3,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pion/logging",
+      "version": "v0.2.4",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1093 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "no matching symbol, but the module IS in the android/arm64 dependency graph; a zero symbol hit is not evidence of exclusion - treated as shipped",
+      "symbolHits": 0,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pion/stun/v3",
+      "version": "v3.1.7",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1093 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "102 defined symbol(s) match the module path",
+      "symbolHits": 102,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pion/transport/v4",
+      "version": "v4.1.0",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1093 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "3 defined symbol(s) match the module path",
+      "symbolHits": 3,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/pires/go-proxyproto",
+      "version": "v0.15.0",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (11341 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "139 defined symbol(s) match the module path",
+      "symbolHits": 139,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/quic-go/qpack",
+      "version": "v0.6.0",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE.md (1054 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "25 defined symbol(s) match the module path",
+      "symbolHits": 25,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/refraction-networking/utls",
+      "version": "v1.8.3-0.20260301010127-aa6edf4b11af",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1479 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "1258 defined symbol(s) match the module path",
+      "symbolHits": 1258,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/robfig/cron/v3",
+      "version": "v3.0.1",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1092 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "78 defined symbol(s) match the module path",
+      "symbolHits": 78,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/sagernet/sing",
+      "version": "v0.5.1",
+      "spdx": "GPL-3.0-or-later",
+      "licenceEvidence": "LICENSE (674 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "573 defined symbol(s) match the module path",
+      "symbolHits": 573,
+      "obligations": [
+        "attribution",
+        "full-corresponding-source-on-distribution",
+        "no-additional-restrictions"
+      ]
+    },
+    {
+      "module": "github.com/sagernet/sing-shadowsocks",
+      "version": "v0.2.7",
+      "spdx": "GPL-3.0-or-later",
+      "licenceEvidence": "LICENSE (674 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "341 defined symbol(s) match the module path",
+      "symbolHits": 341,
+      "obligations": [
+        "attribution",
+        "full-corresponding-source-on-distribution",
+        "no-additional-restrictions"
+      ]
+    },
+    {
+      "module": "github.com/vishvananda/netlink",
+      "version": "v1.3.1",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (10796 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "982 defined symbol(s) match the module path",
+      "symbolHits": 982,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/vishvananda/netns",
+      "version": "v0.0.5",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (10796 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "14 defined symbol(s) match the module path",
+      "symbolHits": 14,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/wlynxg/anet",
+      "version": "v0.0.5",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1493 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "no matching symbol, but the module IS in the android/arm64 dependency graph; a zero symbol hit is not evidence of exclusion - treated as shipped",
+      "symbolHits": 0,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/xtls/libxray",
+      "version": "v0.0.0-00010101000000-000000000000",
+      "spdx": "MIT",
+      "licenceEvidence": "XTLS/libXray repository LICENSE (MIT). The build info records a devel pseudo-version (v0.0.0-00010101000000-000000000000) because the module is built from a local checkout, so there is no module-cache entry to read.",
+      "linkage": "linked",
+      "linkageEvidence": "189 defined symbol(s) match the module path",
+      "symbolHits": 189,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "github.com/xtls/reality",
+      "version": "v0.0.0-20260908062103-8cdf7bf9c7f0",
+      "spdx": "MPL-2.0",
+      "licenceEvidence": "LICENSE (16772 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "781 defined symbol(s) match the module path",
+      "symbolHits": 781,
+      "obligations": [
+        "attribution",
+        "file-level-source-on-modification"
+      ]
+    },
+    {
+      "module": "github.com/xtls/xray-core",
+      "version": "v1.260327.1-0.20260908222543-52a412d9e2f5",
+      "spdx": "MPL-2.0",
+      "licenceEvidence": "LICENSE (16725 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "11636 defined symbol(s) match the module path",
+      "symbolHits": 11636,
+      "obligations": [
+        "attribution",
+        "file-level-source-on-modification"
+      ]
+    },
+    {
+      "module": "go4.org/netipx",
+      "version": "v0.0.0-20231129151722-fdeea329fbba",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1487 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "79 defined symbol(s) match the module path",
+      "symbolHits": 79,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "version": "v0.57.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "206 defined symbol(s) match the module path",
+      "symbolHits": 206,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/exp",
+      "version": "v0.0.0-20240506185415-9bf2ced13842",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1479 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "no matching symbol, but the module IS in the android/arm64 dependency graph; a zero symbol hit is not evidence of exclusion - treated as shipped",
+      "symbolHits": 0,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/mobile",
+      "version": "v0.0.0-20260908204917-8b95e45f8d3e",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "37 defined symbol(s) match the module path",
+      "symbolHits": 37,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/net",
+      "version": "v0.59.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "1623 defined symbol(s) match the module path",
+      "symbolHits": 1623,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/sync",
+      "version": "v0.23.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "22 defined symbol(s) match the module path",
+      "symbolHits": 22,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/sys",
+      "version": "v0.48.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "130 defined symbol(s) match the module path",
+      "symbolHits": 130,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/text",
+      "version": "v0.42.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "183 defined symbol(s) match the module path",
+      "symbolHits": 183,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.org/x/time",
+      "version": "v0.14.0",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1453 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "31 defined symbol(s) match the module path",
+      "symbolHits": 31,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "golang.zx2c4.com/wireguard",
+      "version": "v0.0.0-20250521234502-f333402bd9cb",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1023 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "477 defined symbol(s) match the module path",
+      "symbolHits": 477,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "google.golang.org/genproto/googleapis/rpc",
+      "version": "v0.0.0-20260526163538-3dc84a4a5aaa",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (11358 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "24 defined symbol(s) match the module path",
+      "symbolHits": 24,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "google.golang.org/grpc",
+      "version": "v1.83.2",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (11358 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "2427 defined symbol(s) match the module path",
+      "symbolHits": 2427,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "google.golang.org/protobuf",
+      "version": "v1.36.12",
+      "spdx": "BSD-3-Clause",
+      "licenceEvidence": "LICENSE (1479 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "3603 defined symbol(s) match the module path",
+      "symbolHits": 3603,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "gopkg.in/yaml.v2",
+      "version": "v2.4.0",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (11357 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "no matching symbol, but the module IS in the android/arm64 dependency graph; a zero symbol hit is not evidence of exclusion - treated as shipped",
+      "symbolHits": 0,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "gvisor.dev/gvisor",
+      "version": "v0.0.0-20260122175437-89a5d21be8f0",
+      "spdx": "Apache-2.0",
+      "licenceEvidence": "LICENSE (14110 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "6538 defined symbol(s) match the module path",
+      "symbolHits": 6538,
+      "obligations": [
+        "attribution"
+      ]
+    },
+    {
+      "module": "lukechampine.com/blake3",
+      "version": "v1.4.1",
+      "spdx": "MIT",
+      "licenceEvidence": "LICENSE (1080 bytes)",
+      "linkage": "linked",
+      "linkageEvidence": "35 defined symbol(s) match the module path",
+      "symbolHits": 35,
+      "obligations": [
+        "attribution"
+      ]
+    }
+  ],
+  "expectedNotShipped": [
+    {
+      "module": "golang.zx2c4.com/wintun",
+      "reason": "Windows-only; absent from build info and from the android/arm64 graph"
+    },
+    {
+      "module": "golang.zx2c4.com/wireguard/windows",
+      "reason": "Windows-only; absent from build info and from the android/arm64 graph"
+    }
+  ]
+}
