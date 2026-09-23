@@ -18,5 +18,6 @@ local.properties
 
 # Local native artifacts - deliberately not committed.
 # The libXray AAR statically links GPL-3.0-or-later code (see licenses/README.md), so it is a
-# build prerequisite fetched by scripts/fetch_libxray.py rather than a repository file.
-/core/common/libs/*.aar
+# build prerequisite installed by scripts/fetch_libxray.py rather than a repository file.
+# It is exposed to Gradle as the single coordinate com.xtls:libxray:26.9.9.
+/local-repo/

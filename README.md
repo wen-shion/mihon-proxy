@@ -54,9 +54,14 @@ Android library. That artifact is **not committed** to this repository, so fetch
 before building:
 
 ```bash
-python scripts/fetch_libxray.py            # download the pinned release and check its SHA-256
+# install the pinned, locally built AAR into the git-ignored local Maven repository
+python scripts/install_libxray.py --source <path-to-libXRay.aar>
 python scripts/verify_native_licenses.py   # re-check the Go dependency inventory of the artifact
 ```
+
+The AAR is a **build artifact**, not an upstream download: the release asset is a different,
+partially stripped build and is rejected by the installer. See
+[`licenses/README.md`](./licenses/README.md) for the measured comparison.
 
 The build fails at configuration time with an explanatory message while the artifact is missing. That
 failure is deliberate: it must not degrade into an obscure "unresolved reference" later.

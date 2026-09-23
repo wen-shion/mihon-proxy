@@ -48,7 +48,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = REPO_ROOT / "licenses" / "native-dependencies.json"
-DEFAULT_AAR = REPO_ROOT / "core" / "common" / "libs" / "libXRay.aar"
+DEFAULT_AAR = REPO_ROOT / "local-repo" / "com" / "xtls" / "libxray" / "26.9.9" / "libxray-26.9.9.aar"
 
 # Pinned expectations. These are the values the manifest must agree with.
 PINNED_AAR_SHA256 = "cd6bd2f5287d23f3648910d8bdf80a4bd7f1fd8f74e6303975a7541f4bcbf8eb"
@@ -230,7 +230,10 @@ def obligations_for(spdx: str) -> list[str]:
 def collect(aar: Path, go: str, nm: str | None, libxray_src: Path | None, use_nm: bool,
             gomodcache_override: Path | None = None) -> dict:
     if not aar.is_file():
-        raise SystemExit(f"FAIL  AAR not found: {aar}\n      fetch it first: python scripts/fetch_libxray.py")
+        raise SystemExit(
+            f"FAIL  AAR not found: {aar}\n"
+            "      install it first: python scripts/install_libxray.py --source <path-to-libXRay.aar>",
+        )
 
     aar_hash = sha256_of(aar)
     with tempfile.TemporaryDirectory(prefix="libxray-lic-") as tmp:

@@ -8,7 +8,7 @@ inventory that closes that gap, plus the method used to produce it.
 |---|---|
 | `native-dependencies.json` | The committed inventory: one entry per Go module, with version, SPDX id, licence evidence, linkage verdict and obligations. |
 | `../scripts/verify_native_licenses.py` | Recomputes the inventory from the pinned artifact and compares it with the JSON above. `--write` regenerates it. |
-| `../scripts/fetch_libxray.py` | Fetches and SHA-256-verifies the pinned AAR (it is not committed). |
+| `../scripts/install_libxray.py` | Installs and SHA-256-verifies the pinned AAR into the local Maven repository (it is not committed). |
 | `../THIRD_PARTY_LICENSES.md` | Human-readable rendering of the JSON. |
 
 ## Why the AAR is not committed
@@ -101,7 +101,7 @@ python scripts/verify_native_licenses.py --write --libxray-src <path> --gomodcac
 
 ### Upgrading the AAR
 
-1. Update the pinned values in **both** `scripts/fetch_libxray.py` and
+1. Update the pinned values in **both** `scripts/install_libxray.py` and
    `scripts/verify_native_licenses.py` (`PINNED_AAR_SHA256` and friends).
 2. Re-run the verifier; it will refuse to pass while the manifest disagrees with the artifact.
 3. Review the module diff for licence changes, then `--write` and commit both files together.
