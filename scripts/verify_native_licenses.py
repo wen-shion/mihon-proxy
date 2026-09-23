@@ -25,6 +25,7 @@ Usage
 ::
 
     python scripts/verify_native_licenses.py                 # verify against the committed manifest
+    python scripts/verify_native_licenses.py --artifact <apk> # verify the slice inside a built APK
     python scripts/verify_native_licenses.py --write          # regenerate the manifest
     python scripts/verify_native_licenses.py --aar <path>     # use a different AAR
     python scripts/verify_native_licenses.py --no-nm          # skip symbol evidence (inventory only)
@@ -56,6 +57,7 @@ PINNED_TAG = "v26.9.9"
 PINNED_LIBXRAY_COMMIT = "50b95979f5db551bd273165cf469e5daaf791341"
 PINNED_XRAY_CORE_COMMIT = "52a412d9e2f5c2a5142b1b4e2ab3771dacb8b120"
 NATIVE_LIB = "jni/arm64-v8a/libgojni.so"
+APK_NATIVE_LIB = "lib/arm64-v8a/libgojni.so"
 
 # Modules that must NOT appear: pulled in only by a non-Android source graph.
 EXPECTED_NOT_SHIPPED = {
@@ -227,26 +229,50 @@ def obligations_for(spdx: str) -> list[str]:
 
 
 # ----------------------------------------------------------------------------------------- build
-def collect(aar: Path, go: str, nm: str | None, libxray_src: Path | None, use_nm: bool,
+def resolve_source(source: Path) -> tuple[str, str | None]:
+    """Returns (container kind, member path) for the supported inputs."""
+    suffix = source.suffix.lower()
+    if suffix == ".aar":
+        return "aar", NATIVE_LIB
+    if suffix == ".apk":
+        # The same native library as it ships inside a built app. Verifying this is a stronger
+        # statement than verifying the AAR: it confirms the packaged slice is the pinned one.
+        return "apk", APK_NATIVE_LIB
+    if suffix == ".so":
+        return "shared-library", None
+    raise SystemExit(
+        f"FAIL  unsupported input: {source.name}\n"
+        "      expected an .aar (the installed artifact), an .apk (a built app) or a .so",
+    )
+
+
+def collect(source: Path, go: str, nm: str | None, libxray_src: Path | None, use_nm: bool,
             gomodcache_override: Path | None = None) -> dict:
-    if not aar.is_file():
+    if not source.is_file():
         raise SystemExit(
-            f"FAIL  AAR not found: {aar}\n"
+            f"FAIL  artifact not found: {source}\n"
             "      install it first: python scripts/install_libxray.py --source <path-to-libXRay.aar>",
         )
 
-    aar_hash = sha256_of(aar)
+    kind, member = resolve_source(source)
+    container_size = source.stat().st_size
+    container_hash = sha256_of(source)
+
     with tempfile.TemporaryDirectory(prefix="libxray-lic-") as tmp:
         so_path = Path(tmp) / "libgojni.so"
-        with zipfile.ZipFile(aar) as archive:
-            if NATIVE_LIB not in archive.namelist():
-                raise SystemExit(f"FAIL  {NATIVE_LIB} is not present in {aar}")
-            so_bytes = archive.read(NATIVE_LIB)
+        if kind == "shared-library":
+            so_bytes = source.read_bytes()
+        else:
+            with zipfile.ZipFile(source) as archive:
+                if member not in archive.namelist():
+                    raise SystemExit(f"FAIL  {member} is not present in {source}")
+                so_bytes = archive.read(member)
         so_path.write_bytes(so_bytes)
         so_size = so_path.stat().st_size
         so_hash = hashlib.sha256(so_bytes).hexdigest()
 
-        print(f"      native lib : {NATIVE_LIB} ({so_size:,} bytes)")
+        print(f"      container  : {kind}, {container_size:,} bytes, sha256 {container_hash[:16]}...")
+        print(f"      native lib : {member or '(the given file)'} ({so_size:,} bytes)")
         print("      reading embedded Go build info ...")
         modules = build_info_modules(go, so_path)
 
@@ -296,20 +322,28 @@ def collect(aar: Path, go: str, nm: str | None, libxray_src: Path | None, use_nm
             "obligations": obligations_for(spdx),
         })
 
+    artifact = {
+        "container": kind,
+        "containerName": source.name,
+        "containerSha256": container_hash,
+        "nativeLibrary": member or source.name,
+        "nativeLibraryBytes": so_size,
+        "nativeLibrarySha256": so_hash,
+        "libxrayTag": PINNED_TAG,
+        "libxrayCommit": PINNED_LIBXRAY_COMMIT,
+        "xrayCoreCommit": PINNED_XRAY_CORE_COMMIT,
+    }
+    if kind == "aar":
+        # Only recorded when the source is the installed AAR: the committed manifest is generated
+        # from it, and its identity is what the pinned constants describe.
+        artifact["name"] = source.name
+        artifact["sha256"] = container_hash
+        artifact["expectedSha256"] = PINNED_AAR_SHA256
+        artifact["aarSizeBytes"] = container_size
+
     return {
         "schemaVersion": 1,
-        "artifact": {
-            "name": "libXRay.aar",
-            "sha256": aar_hash,
-            "expectedSha256": PINNED_AAR_SHA256,
-            "aarSizeBytes": aar.stat().st_size,
-            "nativeLibrary": NATIVE_LIB,
-            "nativeLibraryBytes": so_size,
-            "nativeLibrarySha256": so_hash,
-            "libxrayTag": PINNED_TAG,
-            "libxrayCommit": PINNED_LIBXRAY_COMMIT,
-            "xrayCoreCommit": PINNED_XRAY_CORE_COMMIT,
-        },
+        "artifact": artifact,
         "method": {
             "inventory": "go version -m <libgojni.so> (embedded Go build info) - primary source",
             "targetGraph": "go list -deps for GOOS=android GOARCH=arm64 - used to justify not-linked",
@@ -331,6 +365,10 @@ def compare(manifest: dict, actual: dict) -> list[str]:
 
     m_art, a_art = manifest.get("artifact", {}), actual.get("artifact", {})
     for key in ("sha256", "nativeLibrarySha256", "libxrayTag", "libxrayCommit", "xrayCoreCommit"):
+        if key not in a_art:
+            # Verifying an APK or a bare .so: there is no AAR hash to compare. The native library
+            # hash below is the invariant that matters across containers.
+            continue
         if m_art.get(key) != a_art.get(key):
             problems.append(f"artifact.{key}: manifest={m_art.get(key)!r} actual={a_art.get(key)!r}")
 
@@ -363,7 +401,8 @@ def compare(manifest: dict, actual: dict) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--aar", type=Path, default=DEFAULT_AAR)
+    parser.add_argument("--artifact", "--aar", dest="artifact", type=Path, default=DEFAULT_AAR,
+                        help="the installed .aar (default), a built .apk, or a bare .so")
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
     parser.add_argument("--go", default=None, help="path to the go binary (default: found on PATH)")
     parser.add_argument("--nm", default=None, help="path to llvm-nm (default: PATH or $ANDROID_NDK_HOME)")
@@ -386,12 +425,12 @@ def main() -> int:
         print("WARN  llvm-nm not found; symbol evidence will be reported as 'unknown'")
         print("      (set ANDROID_NDK_HOME or pass --nm)")
 
-    print(f"AAR     : {args.aar}")
+    print(f"artifact: {args.artifact}")
     print(f"go      : {go}")
     print(f"llvm-nm : {nm or '(unavailable)'}")
     print()
 
-    actual = collect(args.aar, go, nm, args.libxray_src, not args.no_nm, args.gomodcache)
+    actual = collect(args.artifact, go, nm, args.libxray_src, not args.no_nm, args.gomodcache)
 
     print()
     print(f"modules : {actual['moduleCount']}")
