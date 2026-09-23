@@ -465,8 +465,12 @@ def main() -> int:
         print("If the change is intended, re-run with --write and review the diff.")
         return 1
 
+    art = actual["artifact"]
     print("OK  the manifest matches the pinned artifact")
-    print(f"    {actual['moduleCount']} modules, AAR sha256={actual['artifact']['sha256']}")
+    print(f"    {actual['moduleCount']} modules, {art['container']}: {art['containerName']}")
+    print(f"    native library sha256={art['nativeLibrarySha256']}")
+    if "sha256" in art:
+        print(f"    aar sha256={art['sha256']}")
     if unknown_licence:
         print(f"    NOTE unresolved licences: {', '.join(unknown_licence)}")
     return 0
