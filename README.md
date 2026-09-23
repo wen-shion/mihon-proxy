@@ -89,10 +89,11 @@ build** and must not be used as the Phase 2 artifact:
 | `arm64-v8a/libgojni.so` | 70,624,472 | **50,879,232** (stripped) |
 | `x86_64/libgojni.so` | 72,963,808 | **54,014,264** (stripped) |
 
-Only the 64-bit slices differ, by the size of the removed DWARF data. Because it also changes which
-symbols the native library exposes, it would invalidate the licence inventory in this repository — so
-the installer rejects it explicitly rather than installing it silently. See
-[`licenses/README.md`](./licenses/README.md).
+The 64-bit slices are substantially smaller in the release build, consistent with stripped DWARF
+data; the 32-bit slices differ only slightly, and that difference has not been attributed further.
+Because the release build also changes which symbols the native library exposes, it would invalidate
+the licence inventory in this repository — so the installer rejects it explicitly rather than
+installing it silently. See [`licenses/README.md`](./licenses/README.md).
 
 * Release artefacts target **`arm64-v8a` only**. Development builds can add the `x86_64` slice for an
   emulator with `-PproxyDevAbiX86_64`.
@@ -112,9 +113,9 @@ machine-verified against the embedded Go build info of the pinned artifact and r
 Consequences:
 
 * Building and running this source tree for personal use is unaffected.
-* **Distributing a binary that contains the native core makes the whole work subject to
-  GPL-3.0-or-later**, including the corresponding-source obligation.
-* Public APK distribution from this repository is therefore
+* The combined APK contains GPL-3.0-or-later components, and **distribution may trigger GPLv3
+  obligations** (including the corresponding-source obligation).
+* Public binary distribution remains
   **`NOT APPROVED YET - requires GPLv3 distribution/compliance review before first public binary release.`**
 
 

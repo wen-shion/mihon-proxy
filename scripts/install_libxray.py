@@ -20,9 +20,10 @@ stripped build. Measured comparison of the two AARs:
     | jni/armeabi-v7a/…so       |     66,849,724 |       66,770,648 |
     | jni/x86/libgojni.so       |     67,175,504 |       67,097,188 |
 
-(Only the 64-bit slices differ, by the size of the stripped DWARF data.) Downloading the release
-therefore **cannot** produce the pinned artifact, which is why this script has no download branch:
-it installs an already-built AAR and verifies it against the pinned hash.
+(The 64-bit slices are substantially smaller in the release build, consistent with stripped DWARF
+data; the 32-bit slices differ only slightly, and that difference has not been attributed further.)
+Downloading the release therefore **cannot** produce the pinned artifact, which is why this script
+has no download branch: it installs an already-built AAR and verifies it against the pinned hash.
 
 Why a local Maven repository
 ----------------------------

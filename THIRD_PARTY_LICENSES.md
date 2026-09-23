@@ -45,10 +45,9 @@ removed by choosing a different wrapper. They are proven to be linked by symbol 
 | `github.com/sagernet/sing` | `v0.5.1` | 573 | attribution, full-corresponding-source-on-distribution, no-additional-restrictions |
 | `github.com/sagernet/sing-shadowsocks` | `v0.2.7` | 341 | attribution, full-corresponding-source-on-distribution, no-additional-restrictions |
 
-**Consequence:** distributing an APK that contains the native core makes the whole work subject to
-GPL-3.0-or-later, including the corresponding-source obligation. Public APK distribution from this
-repository is `NOT APPROVED YET - requires GPLv3 distribution/compliance review before first public
-binary release.`
+**Consequence:** the combined APK contains GPL-3.0-or-later components, and distribution may trigger
+GPLv3 obligations (including the corresponding-source obligation). Public binary distribution remains
+`NOT APPROVED YET - requires GPLv3 distribution/compliance review before first public binary release.`
 
 ### MPL-2.0 - file-level copyleft
 

@@ -21,10 +21,10 @@ Committing the binary would make this repository a distributor of GPL binaries. 
 the GPL obligation attached to whoever chooses to publish a built APK, and not to the source tree:
 
 * Building and running locally - unaffected.
-* Publishing a binary containing the core - the whole work becomes subject to GPL-3.0-or-later,
-  including the corresponding-source obligation.
-* **Public APK distribution is `NOT APPROVED YET - requires GPLv3 distribution/compliance review
-  before first public binary release.`**
+* Publishing a binary containing the core - the combined APK contains GPL-3.0-or-later components,
+  and distribution may trigger GPLv3 obligations (including the corresponding-source obligation).
+* **Public binary distribution remains `NOT APPROVED YET - requires GPLv3 distribution/compliance
+  review before first public binary release.`**
 
 Unmodified Xray-core is MPL-2.0, which is compatible with GPL-3.0 here only because Exhibit B
 ("Incompatible With Secondary Licenses") was **not** applied: none of the `.go` files carries that
