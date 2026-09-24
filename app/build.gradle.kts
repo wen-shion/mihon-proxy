@@ -43,6 +43,20 @@ android {
         buildConfigField("boolean", "UPDATER_ENABLED", "${Config.enableUpdater}")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // The embedded VLESS + REALITY core (XTLS/libXray) is shipped for arm64-v8a only.
+        //
+        // AGP 9.x has no per-variant ABI filter API - `BuildType`, `Variant` and `VariantBuilder`
+        // expose no `ndk`/`abiFilters`, only `dsl.Ndk` on defaultConfig/flavors - so the ABI set is
+        // defined here for every variant, and the x86_64 slice that is only needed to run on an
+        // emulator during development is opt-in via `-PproxyDevAbiX86_64` instead of being bound to
+        // the debug build type. Adding the property produces an arm64 + x86_64 debug APK.
+        ndk {
+            abiFilters += "arm64-v8a"
+            if (project.hasProperty("proxyDevAbiX86_64")) {
+                abiFilters += "x86_64"
+            }
+        }
     }
 
     if (System.getenv("MIHON_GITHUB_RELEASE").toBoolean()) {
@@ -122,12 +136,14 @@ android {
         getByName("benchmark").res.directories.add("src/debug/res")
     }
 
+    // Per-ABI split APKs are disabled on purpose: with the embedded native core the arm64-v8a APK is
+    // the release artefact (see the `ndk.abiFilters` note in `defaultConfig`). Re-enabling splits
+    // would produce an x86_64 release APK as well, which is not what the current ABI decision wants;
+    // supporting another ABI is an `abiFilters` change, not a splits change.
     splits {
         abi {
-            isEnable = true
-            isUniversalApk = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isEnable = false
+            isUniversalApk = false
         }
     }
 
@@ -138,6 +154,11 @@ android {
                 "libarchive-jni",
                 "libconscrypt_jni",
                 "libimagedecoder",
+                // libgojni.so is the libXray core (Go). Phase 2 deliberately keeps its full native
+                // debug information: AGP's StripDebugSymbolsTask would otherwise strip it whenever
+                // the pinned NDK is present, which it is (see gradle/mihon.versions.toml).
+                // Cost: the unstripped arm64 slice is ~67 MiB and is stored uncompressed in the APK.
+                "libgojni",
                 "libquickjs",
                 "libsqlite3x",
             )

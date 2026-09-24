@@ -47,6 +47,78 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 Before reporting a new issue, take a look at the [FAQ](https://mihon.app/docs/faq/general), the [changelog](https://mihon.app/changelogs/) and the already opened [issues](https://github.com/mihonapp/mihon/issues); if you got any questions, join our [Discord server](https://discord.gg/mihon).
 
 
+## Building from source
+
+This fork embeds a VLESS + REALITY core ([XTLS/libXray](https://github.com/XTLS/libXray)) as a native
+Android library. That artifact is **not committed** to this repository, so install and verify it once
+before building:
+
+```bash
+# install the frozen AAR into the git-ignored local Maven repository
+python scripts/install_libxray.py --source <path-to-libXRay.aar>
+python scripts/verify_native_licenses.py   # re-check the Go dependency inventory of the artifact
+```
+
+The build fails at configuration time with an explanatory message while the artifact is missing. That
+failure is deliberate: it must not degrade into an obscure "unresolved reference" later.
+
+#### The frozen AAR
+
+The only acceptable artifact is the frozen build recorded in the Phase 1 reproducibility manifest:
+
+| | |
+|---|---|
+| File | `libXRay.aar` |
+| Size | `97,878,333` bytes |
+| **SHA-256** | **`cd6bd2f5287d23f3648910d8bdf80a4bd7f1fd8f74e6303975a7541f4bcbf8eb`** |
+| Built from | XTLS/libXray `v26.9.9` @ `50b95979f5db551bd273165cf469e5daaf791341` |
+| Toolchain | Go `1.27.1`, Android NDK `r29` (`29.0.14206865`) |
+| Native library | `jni/arm64-v8a/libgojni.so` = `70,624,472` bytes, **unstripped** |
+
+`install_libxray.py` verifies this SHA-256 **before** installing and refuses anything else.
+
+#### What is *not* an acceptable artifact
+
+The upstream release asset (`libxray-android.zip` → `libxray-android/libXray.aar`) is a **different
+build** and must not be used as the Phase 2 artifact:
+
+| | frozen | upstream release |
+|---|---:|---:|
+| SHA-256 | `cd6bd2f5…bf8eb` | `df0cabde…2be3` |
+| Size | 97,878,333 | 99,131,846 |
+| `arm64-v8a/libgojni.so` | 70,624,472 | **50,879,232** (stripped) |
+| `x86_64/libgojni.so` | 72,963,808 | **54,014,264** (stripped) |
+
+The 64-bit slices are substantially smaller in the release build, consistent with stripped DWARF
+data; the 32-bit slices differ only slightly, and that difference has not been attributed further.
+Because the release build also changes which symbols the native library exposes, it would invalidate
+the licence inventory in this repository — so the installer rejects it explicitly rather than
+installing it silently. See [`licenses/README.md`](./licenses/README.md).
+
+* Release artefacts target **`arm64-v8a` only**. Development builds can add the `x86_64` slice for an
+  emulator with `-PproxyDevAbiX86_64`.
+* The native library **keeps its debug symbols on purpose** (see the `keepDebugSymbols` note in
+  `app/build.gradle.kts`).
+
+### Native dependencies and licensing
+
+The APK statically links components licensed under **GPL-3.0-or-later**
+(`github.com/sagernet/sing`, `github.com/sagernet/sing-shadowsocks`, both pulled in by Xray-core
+itself), together with MPL-2.0 (Xray-core, REALITY) and permissive dependencies. The inventory is
+machine-verified against the embedded Go build info of the pinned artifact and recorded in
+[`licenses/native-dependencies.json`](./licenses/native-dependencies.json); a readable summary is in
+[`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md), and the verification method is described in
+[`licenses/README.md`](./licenses/README.md).
+
+Consequences:
+
+* Building and running this source tree for personal use is unaffected.
+* The combined APK contains GPL-3.0-or-later components, and **distribution may trigger GPLv3
+  obligations** (including the corresponding-source obligation).
+* Public binary distribution remains
+  **`NOT APPROVED YET - requires GPLv3 distribution/compliance review before first public binary release.`**
+
+
 ### Repositories
 
 [![mihonapp/website - GitHub](https://github-stats-extended.vercel.app/api/pin/?username=mihonapp&repo=website&bg_color=161B22&text_color=c9d1d9&title_color=0877d2&icon_color=0877d2&border_radius=8&hide_border=true&description_lines_count=2)](https://github.com/mihonapp/website/)

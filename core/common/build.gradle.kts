@@ -20,6 +20,10 @@ kotlin {
 }
 
 dependencies {
+    // libXray - the in-process VLESS + REALITY core. Installed into the local, git-ignored Maven
+    // repository by scripts/install_libxray.py; declared and existence-checked in settings.gradle.kts.
+    implementation("com.xtls:libxray:26.9.9")
+
     implementation(projects.core.metro)
     implementation(projects.i18n)
 
