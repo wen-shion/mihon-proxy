@@ -55,12 +55,33 @@ enum class XrayErrorCategory {
 }
 
 /**
+ * A stand-in for a caught throwable that keeps only its type name.
+ *
+ * The original is dropped rather than nested as a `cause`, because a cause chain is printed verbatim
+ * by `printStackTrace()` and by every crash reporter: keeping it even one level down would put its
+ * message - and with it an endpoint, a provider URL or a config fragment - back on the report.
+ *
+ * The type name alone distinguishes a JNI failure from a JSON-parse failure, which is what a local
+ * diagnosis needs, and it carries no text that could have come from the payload. Its own `cause` is
+ * always null, so the chain ends here.
+ */
+class SanitisedCause internal constructor(val originalType: String) : Exception(originalType) {
+
+    override fun toString(): String = "SanitisedCause($originalType)"
+}
+
+/** Replaces a caught throwable with its type name, discarding the message. */
+internal fun Throwable.sanitisedCause(): SanitisedCause = SanitisedCause(this.javaClass.name)
+
+/**
  * The only exception the adapter throws.
  *
- * [message] is the category name: the native error string is classified at the boundary and then
- * discarded, so no endpoint, credential or provider text can travel upwards through an exception.
+ * [message] is the category name and the cause, if there is one, is a [SanitisedCause]. Neither
+ * [Throwable.getMessage] nor the cause chain a crash reporter walks can therefore carry an endpoint,
+ * a credential, a provider URL or a config fragment: this type holds no reference to the original
+ * throwable, so there is nothing for a caller to reach.
  */
 class XrayException(
     val category: XrayErrorCategory,
-    cause: Throwable? = null,
-) : Exception(category.name, cause)
+    sanitisedCause: SanitisedCause? = null,
+) : Exception(category.name, sanitisedCause)

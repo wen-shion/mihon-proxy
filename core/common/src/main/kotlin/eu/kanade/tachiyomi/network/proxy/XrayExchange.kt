@@ -45,7 +45,9 @@ internal object XrayExchange {
             val payload = try {
                 json.parseToJsonElement(payloadJson)
             } catch (error: SerializationException) {
-                throw XrayException(XrayErrorCategory.MalformedJson, error)
+                // The parser message quotes the offending input, which for a config payload is
+                // credential material - so only the type survives.
+                throw XrayException(XrayErrorCategory.MalformedJson, error.sanitisedCause())
             }
             put("payload", payload)
         }
@@ -61,7 +63,7 @@ internal object XrayExchange {
         val envelope = try {
             response?.let { json.parseToJsonElement(it) }
         } catch (error: SerializationException) {
-            throw XrayException(XrayErrorCategory.MalformedJson, error)
+            throw XrayException(XrayErrorCategory.MalformedJson, error.sanitisedCause())
         } as? JsonObject ?: throw XrayException(XrayErrorCategory.LocalFailure)
 
         val succeeded = envelope["success"]?.jsonPrimitive?.booleanOrNull ?: false

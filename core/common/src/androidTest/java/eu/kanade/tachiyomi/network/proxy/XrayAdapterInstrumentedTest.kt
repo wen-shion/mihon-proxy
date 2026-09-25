@@ -17,8 +17,8 @@ import org.junit.runner.RunWith
  *
  * The unit tests fake [LibXrayInvoker], so they can pin the envelope and the call sequence but they
  * cannot tell whether our reading of libXray's contract is right. These run on a device or an
- * emulator with `libgojni.so` loaded, so the wire names, the response shape and the two structural
- * gates are exercised against the pinned AAR instead of against our own assumptions.
+ * emulator with `libgojni.so` loaded, so the wire names, the response shape and the gates are
+ * exercised against the pinned AAR instead of against our own assumptions.
  *
  * Nothing here reaches the network: the configs point at `.invalid` addresses, which the resolver
  * is required to reject, so a `RemoteDialFailed`/`RemoteTimeout`/`RemoteConnectionRefused` outcome
@@ -67,13 +67,17 @@ class XrayAdapterInstrumentedTest {
     }
 
     @Test
-    fun shareLinksConvertToOpaqueOutboundJson(): Unit = runBlocking {
-        val outbounds = adapter.convertShareLinks(VLESS_SHARE_LINK)
-        assertEquals(1, outbounds.size)
-        val outbound = outbounds.single()
-        // One outbound object per node, carrying the protocol and the remark as the tag (Q1).
-        assertTrue("no protocol in $outbound", outbound.contains("\"protocol\""))
-        assertTrue("no tag in $outbound", outbound.contains("\"tag\""))
+    fun shareLinksConvertToOpaqueNodeTemplates(): Unit = runBlocking {
+        val nodes = adapter.convertShareLinks(VLESS_SHARE_LINK)
+        assertEquals(1, nodes.size)
+        val node = nodes.single()
+        // One outbound object per node, carrying the protocol and the remark as the tag (Q1). The
+        // payload is readable inside this module for a contract assertion...
+        assertTrue("no protocol in the payload", node.outboundJson.contains("\"protocol\""))
+        assertTrue("no tag in the payload", node.outboundJson.contains("\"tag\""))
+        // ...and stays opaque in every string form, which is what would reach a log or a report.
+        assertEquals("NodeTemplate(<redacted>)", node.toString())
+        assertFalse("the payload leaked through the container", nodes.toString().contains("\"protocol\""))
     }
 
     @Test
@@ -86,7 +90,7 @@ class XrayAdapterInstrumentedTest {
         }
     }
 
-    // -- T-16: the two gates hold against the real core ------------------------------------------
+    // -- T-16: the gates hold against the real core ----------------------------------------------
 
     @Test
     fun anEmptyConfigIsRejectedAndNeverReachesTheCore(): Unit = runBlocking {
@@ -130,6 +134,34 @@ class XrayAdapterInstrumentedTest {
         adapter.validate(XrayConfigBuilder.build(NodeTemplate(VLESS_OUTBOUND), 10808))
     }
 
+    /**
+     * The gate that only `testXray` can provide, against the core itself.
+     *
+     * The config is structurally valid - it is produced by our own builder and passes every
+     * invariant - but the core refuses it, because a REALITY outbound with no secret cannot be built.
+     * `start` must therefore stop after `testXray` and never call `runXray`.
+     */
+    @Test
+    fun aConfigTheCoreItselfRejectsIsNeverRun(): Unit = runBlocking {
+        val withoutSecret = VLESS_OUTBOUND.replace(
+            """"password":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",""",
+            "",
+        )
+        val config = XrayConfigBuilder.build(withoutSecret, adapter.freePort())
+
+        try {
+            adapter.start(config)
+            fail("start ran a config the core itself rejects")
+        } catch (expected: XrayException) {
+            assertEquals(XrayErrorCategory.ConfigValidationFailed, expected.category)
+            assertFalse("the core was started by a config it refused", adapter.isRunning())
+        }
+
+        // Nothing was left behind: testXray refuses to run while an instance is live, so if the
+        // rejected start had left a core up, this would report AlreadyRunning instead of validating.
+        adapter.validate(XrayConfigBuilder.build(VLESS_OUTBOUND, adapter.freePort()))
+    }
+
     // -- T-17: "the config is invalid" is distinguishable from "the remote is unreachable" -------
 
     @Test
@@ -150,7 +182,8 @@ class XrayAdapterInstrumentedTest {
     fun startingTheVerifiedConfigBringsUpTheListenerAndReportsRunning(): Unit = runBlocking {
         val port = adapter.freePort()
         val config = XrayConfigBuilder.build(NodeTemplate(VLESS_OUTBOUND), port)
-        // runXray is synchronous: once it returns, the listener is up (F1).
+        // start tests first and only then runs; runXray is synchronous, so once start returns the
+        // listener is up (F1).
         adapter.start(config)
         assertTrue("the core did not report itself as running", adapter.isRunning())
         adapter.stop()
@@ -171,12 +204,20 @@ class XrayAdapterInstrumentedTest {
 
     @Test
     fun noFailureEverCarriesNativeText(): Unit = runBlocking {
-        // The native string can name the endpoint, so the exception must carry only the category.
+        // The native string can name the endpoint, so the exception must carry only the category -
+        // and neither the message, the string form nor the printed chain may echo the config.
         val failures = buildList {
             runCatching { adapter.convertShareLinks("not a link") }.exceptionOrNull()?.let(::add)
             runCatching { adapter.start("{}") }.exceptionOrNull()?.let(::add)
         }
         assertEquals("expected both calls to fail", 2, failures.size)
+
+        val secrets = listOf(
+            "example.invalid",
+            "11111111-2222-3333-4444-555555555555",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "user:password",
+        )
         for (failure in failures) {
             val error = failure as XrayException
             // The message is the category name - never the native text.
@@ -186,6 +227,14 @@ class XrayAdapterInstrumentedTest {
                 "an expected failure was left unclassified: ${error.category}",
                 error.category == XrayErrorCategory.Other,
             )
+            error.renderings().forEach { rendered ->
+                secrets.forEach { secret ->
+                    assertFalse(
+                        "a failure echoed secret material: $secret in ${rendered.take(200)}",
+                        rendered.contains(secret),
+                    )
+                }
+            }
         }
     }
 
@@ -213,5 +262,16 @@ class XrayAdapterInstrumentedTest {
                 """"streamSettings":{"network":"raw","security":"reality","realitySettings":{""" +
                 """"serverName":"example.invalid","fingerprint":"chrome",""" +
                 """"password":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","shortId":"0000"}}}"""
+    }
+}
+
+/** Every rendering of a throwable, including the printed chain, so a leak cannot hide in one. */
+private fun Throwable.renderings(): List<String> {
+    val chain = generateSequence(this) { it.cause }.toList()
+    return buildList {
+        addAll(chain.map { it.toString() })
+        addAll(chain.map { it.message ?: "" })
+        add(stackTraceToString())
+        add(chain.last().stackTraceToString())
     }
 }

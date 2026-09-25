@@ -76,5 +76,29 @@ class ProxyNodeModelTest {
         node.displayName shouldBe "tokyo-1"
         // Identity is local and stable within a snapshot, and it is not derived from the endpoint.
         node.toString().contains("example.invalid") shouldBe false
+        // The remark is reachable through the property but not through the string form.
+        node.toString().contains("tokyo-1") shouldBe false
+    }
+
+    @Test
+    fun `the node redacts the provider remark in every string form`() {
+        val remark = "SECRET_PROVIDER_REMARK_123"
+        val node = ProxyNode(
+            id = NodeId("local-7"),
+            ordinal = 3,
+            displayName = remark,
+            protocol = NodeProtocol.VLESS,
+            security = NodeSecurity.REALITY,
+        )
+
+        // The UI reads the property, so the remark has to stay reachable there...
+        node.displayName shouldBe remark
+
+        // ...but a data class prints every property by default, and a node list is exactly what gets
+        // printed when something looks wrong. None of these may carry it.
+        node.toString().contains(remark) shouldBe false
+        listOf(node).toString().contains(remark) shouldBe false
+        mapOf("selected" to node).toString().contains(remark) shouldBe false
+        node.copy().toString().contains(remark) shouldBe false
     }
 }

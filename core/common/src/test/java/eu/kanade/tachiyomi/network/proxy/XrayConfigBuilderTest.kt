@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.network.proxy
 
 import eu.kanade.tachiyomi.network.proxy.model.NodeTemplate
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -97,6 +98,106 @@ class XrayConfigBuilderTest {
     fun `a freedom outbound is rejected so a failed node cannot fall back to direct`() {
         val failure = assertThrows<XrayException> {
             XrayConfigBuilder.build("""{"protocol":"freedom"}""", 10808)
+        }
+        failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+    }
+
+    /**
+     * The outbound family is pinned to what the MVP verified on a device.
+     *
+     * Accepting "any protocol that is not freedom" would mean shipping a config the spikes never ran:
+     * a protocol that fails to build, or one that routes somewhere we did not expect.
+     */
+    @Test
+    fun `an outbound family other than vless is rejected`() {
+        val families = listOf("vmess", "trojan", "shadowsocks", "socks", "http", "wireguard", "dns")
+        families.forEach { protocol ->
+            withClue(protocol) {
+                val failure = assertThrows<XrayException> {
+                    XrayConfigBuilder.build(
+                        """{"protocol":"$protocol","settings":{},"streamSettings":{"security":"reality"}}""",
+                        10808,
+                    )
+                }
+                failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+            }
+        }
+    }
+
+    @Test
+    fun `a vless outbound that is not reality is rejected`() {
+        listOf("tls", "none", "xtls").forEach { security ->
+            withClue(security) {
+                val failure = assertThrows<XrayException> {
+                    XrayConfigBuilder.build(
+                        """{"protocol":"vless","settings":{"address":"example.invalid","port":443},""" +
+                            """"streamSettings":{"security":"$security"}}""",
+                        10808,
+                    )
+                }
+                failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+            }
+        }
+    }
+
+    @Test
+    fun `a vless outbound without stream settings is rejected`() {
+        val failure = assertThrows<XrayException> {
+            XrayConfigBuilder.build(
+                """{"protocol":"vless","settings":{"address":"example.invalid","port":443}}""",
+                10808,
+            )
+        }
+        failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+    }
+
+    @Test
+    fun `a vless outbound without settings is rejected`() {
+        val failure = assertThrows<XrayException> {
+            XrayConfigBuilder.build("""{"protocol":"vless","streamSettings":{"security":"reality"}}""", 10808)
+        }
+        failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+    }
+
+    @Test
+    fun `an outbound whose declared port is out of range is rejected`() {
+        listOf(0, 65536, -1).forEach { port ->
+            withClue("port=$port") {
+                val failure = assertThrows<XrayException> {
+                    XrayConfigBuilder.build(
+                        """{"protocol":"vless","settings":{"address":"example.invalid","port":$port},""" +
+                            """"streamSettings":{"security":"reality"}}""",
+                        10808,
+                    )
+                }
+                failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+            }
+        }
+    }
+
+    /**
+     * libXray's projection writes a flat `settings.port`; Xray's own schema uses
+     * `settings.vnext[0].port`. Both are read so an AAR upgrade that switches between them cannot
+     * start rejecting every node.
+     */
+    @Test
+    fun `both shapes of a declared outbound port are read`() {
+        XrayConfigBuilder.build(
+            """{"protocol":"vless","settings":{"address":"example.invalid","port":443},""" +
+                """"streamSettings":{"security":"reality"}}""",
+            10808,
+        )
+        XrayConfigBuilder.build(
+            """{"protocol":"vless","settings":{"vnext":[{"address":"example.invalid","port":443}]},""" +
+                """"streamSettings":{"security":"reality"}}""",
+            10808,
+        )
+        val failure = assertThrows<XrayException> {
+            XrayConfigBuilder.build(
+                """{"protocol":"vless","settings":{"vnext":[{"address":"a","port":70000}]},""" +
+                    """"streamSettings":{"security":"reality"}}""",
+                10808,
+            )
         }
         failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
     }

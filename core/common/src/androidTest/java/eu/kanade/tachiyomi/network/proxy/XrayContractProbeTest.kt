@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.network.proxy
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import libXray.LibXray
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -11,39 +12,48 @@ import org.junit.runner.RunWith
  *
  * Phase 1B recorded the projection libXray emits for a `vless://` link. Running it here against the
  * pinned AAR found a difference that no JVM test could: the REALITY secret is carried as
- * **`password`**, and a payload that names it `publicKey` is rejected by the core with
- * `Failed to build REALITY config. > empty "password"`. Both facts are asserted below, so an AAR
- * upgrade or a change to the fixture that reintroduces the wrong key fails here rather than in the
- * runtime.
+ * **`password`**, and a payload that omits it is rejected by the core with
+ * `Failed to build REALITY config. > empty "password"`.
+ *
+ * That rejection is what `XrayAdapter.start` has to catch *before* `runXray`, so this test also ties
+ * the raw native error to the category the runtime branches on - otherwise the gate could be
+ * checking a category the real core never produces.
  */
 @RunWith(AndroidJUnit4::class)
 class XrayContractProbeTest {
 
     @Test
     fun theProjectionShapeIsAcceptedByTheCore() {
-        assertAccepted(PROJECTION_OUTBOUND)
+        val response = testXray(PROJECTION_OUTBOUND)
+        assertTrue("the core rejected the projection shape: $response", response.contains("\"success\":true"))
     }
 
     @Test
-    fun realityWithoutASecretIsRejectedByTheCore() {
-        // The negative control, and the reason the fixture must carry a REALITY secret at all: a
-        // `realitySettings` object with no key material is rejected with
-        // `Failed to build REALITY config. > empty "password"`. If this ever starts passing, the
-        // core has changed how it reads REALITY settings and the fixture needs review.
+    fun realityWithoutASecretIsRejectedAndClassified() {
+        // The negative control, and the reason the fixture must carry a REALITY secret at all. This
+        // is the same mutation `XrayAdapterInstrumentedTest` feeds to start().
         val withoutSecret = PROJECTION_OUTBOUND.replace(
             """"password":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",""",
             "",
         )
-        val error = testXray(withoutSecret)
-        assertTrue(
-            "expected the core to reject a REALITY outbound without a secret, got: $error",
-            error.contains("REALITY", ignoreCase = true) || error.contains("\"success\":false"),
-        )
-    }
+        val response = testXray(withoutSecret)
+        println("PROBE[reality-without-secret] -> $response")
 
-    private fun assertAccepted(outboundJson: String) {
-        val response = testXray(outboundJson)
-        assertTrue("the core rejected the projection shape: $response", response.contains("\"success\":true"))
+        assertTrue(
+            "the core accepted a REALITY outbound with no secret: $response",
+            response.contains("\"success\":false"),
+        )
+        assertTrue(
+            "the failure was not the REALITY one: $response",
+            response.contains("REALITY", ignoreCase = true),
+        )
+
+        // The boundary must turn exactly this into the category the gate checks; if it did not,
+        // start() would let the config through to runXray.
+        val category = runCatching { XrayExchange.data(response) }
+            .exceptionOrNull()
+            ?.let { (it as XrayException).category }
+        assertEquals(XrayErrorCategory.ConfigValidationFailed, category)
     }
 
     private fun testXray(outboundJson: String): String {
