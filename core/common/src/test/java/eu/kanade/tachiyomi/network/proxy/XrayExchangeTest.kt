@@ -30,7 +30,7 @@ class XrayExchangeTest {
     @Test
     fun `a success returns its data object`() {
         XrayExchange.data("""{"success":true,"data":{"version":"26.9.9"},"error":""}""")
-            .string("version") shouldBe "26.9.9"
+            .strictString("version") shouldBe "26.9.9"
     }
 
     @Test

@@ -31,7 +31,7 @@ class LibXrayNativeLoadTest {
         val invoker: LibXrayInvoker = RealLibXrayInvoker()
         val response = invoker.invoke(XrayMethod.Version, null)
         val data = XrayExchange.data(response)
-        val version = data.string(XrayExchange.KEY_VERSION)
+        val version = data.strictString(XrayExchange.KEY_VERSION)
         assertTrue("the native core reported no version", version != null && version.isNotBlank())
     }
 

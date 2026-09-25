@@ -71,13 +71,24 @@ internal class RealXrayAdapter(
 ) : XrayAdapter {
 
     override suspend fun version(): String = withContext(io) {
-        request(XrayMethod.Version, null).string(XrayExchange.KEY_VERSION)
+        request(XrayMethod.Version, null).strictString(XrayExchange.KEY_VERSION)
             ?: throw XrayException(XrayErrorCategory.LocalFailure)
     }
 
+    /**
+     * A port that was free when the core picked it. May be taken by the time it is used.
+     *
+     * The whole `ports` list has to be usable, not just its head: a port outside the valid range is
+     * a contract break, and accepting a list because the first entry looked fine would hand the
+     * runtime a fallback it cannot use.
+     */
     override suspend fun freePort(): Int = withContext(io) {
-        request(XrayMethod.FreePorts, FREEPORTS_PAYLOAD).ints(XrayExchange.KEY_PORTS).firstOrNull()
+        val ports = request(XrayMethod.FreePorts, FREEPORTS_PAYLOAD).strictInts(XrayExchange.KEY_PORTS)
             ?: throw XrayException(XrayErrorCategory.LocalFailure)
+        ports.forEach { port ->
+            if (port !in 1..65535) throw XrayException(XrayErrorCategory.LocalFailure)
+        }
+        ports.firstOrNull() ?: throw XrayException(XrayErrorCategory.LocalFailure)
     }
 
     override suspend fun validate(configJson: String): Unit = withContext(io) {
@@ -163,8 +174,8 @@ internal class RealXrayAdapter(
         // Logging: the pinned level, and the access log explicitly off. Unset is not equivalent - it
         // defaults to the console and writes every accepted destination plus the outbound tag.
         val log = config["log"] as? JsonObject ?: throw invalid()
-        if (log.string("loglevel") != XrayConfigBuilder.LOG_LEVEL) throw invalid()
-        if (log.string("access") != XrayConfigBuilder.ACCESS_LOG) throw invalid()
+        if (log.strictString("loglevel") != XrayConfigBuilder.LOG_LEVEL) throw invalid()
+        if (log.strictString("access") != XrayConfigBuilder.ACCESS_LOG) throw invalid()
 
         // No section that could route, resolve or export traffic around the selected node.
         XrayConfigBuilder.FORBIDDEN_SECTIONS.forEach { section ->
@@ -176,12 +187,12 @@ internal class RealXrayAdapter(
         val inbounds = config["inbounds"] as? JsonArray ?: throw invalid()
         if (inbounds.size != 1) throw invalid()
         val inbound = inbounds[0] as? JsonObject ?: throw invalid()
-        if (inbound.string("protocol") != XrayConfigBuilder.INBOUND_PROTOCOL) throw invalid()
-        if (inbound.string("listen") != XrayConfigBuilder.LOOPBACK_HOST) throw invalid()
+        if (inbound.strictString("protocol") != XrayConfigBuilder.INBOUND_PROTOCOL) throw invalid()
+        if (inbound.strictString("listen") != XrayConfigBuilder.LOOPBACK_HOST) throw invalid()
         val inboundPort = (inbound["port"] as? JsonPrimitive)?.intOrNull
         if (inboundPort == null || inboundPort !in 1..65535) throw invalid()
         val inboundSettings = inbound["settings"] as? JsonObject ?: throw invalid()
-        if (inboundSettings.string("auth") != XrayConfigBuilder.INBOUND_AUTH) throw invalid()
+        if (inboundSettings.strictString("auth") != XrayConfigBuilder.INBOUND_AUTH) throw invalid()
         if (inboundSettings.boolean("udp") != false) throw invalid()
 
         // Exactly one outbound, VLESS over REALITY. No `freedom`, so a failed node cannot fall back
@@ -189,9 +200,9 @@ internal class RealXrayAdapter(
         val outbounds = config["outbounds"] as? JsonArray ?: throw invalid()
         if (outbounds.size != 1) throw invalid()
         val outbound = outbounds[0] as? JsonObject ?: throw invalid()
-        if (outbound.string("protocol") != XrayConfigBuilder.OUTBOUND_PROTOCOL) throw invalid()
+        if (outbound.strictString("protocol") != XrayConfigBuilder.OUTBOUND_PROTOCOL) throw invalid()
         val streamSettings = outbound["streamSettings"] as? JsonObject ?: throw invalid()
-        if (streamSettings.string("security") != XrayConfigBuilder.OUTBOUND_SECURITY) throw invalid()
+        if (streamSettings.strictString("security") != XrayConfigBuilder.OUTBOUND_SECURITY) throw invalid()
     }
 
     private fun request(method: XrayMethod, payloadJson: String?): JsonObject {
@@ -218,8 +229,14 @@ internal class RealXrayAdapter(
     private fun invalid(): Nothing = throw XrayException(XrayErrorCategory.ConfigValidationFailed)
 
     private companion object {
-        /** Two ports so the runtime has a fallback without a second round trip. */
-        const val FREEPORTS_PAYLOAD = """{"count":2}"""
+        /**
+         * One port per call.
+         *
+         * The runtime asks again when it needs another one, rather than holding a second port that
+         * was picked before it was needed. A spare is only useful at the moment of a collision, and
+         * by then the core can hand out a fresh one anyway.
+         */
+        const val FREEPORTS_PAYLOAD = """{"count":1}"""
     }
 }
 

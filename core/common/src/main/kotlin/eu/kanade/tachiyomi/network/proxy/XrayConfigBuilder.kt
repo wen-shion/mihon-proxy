@@ -63,10 +63,14 @@ object XrayConfigBuilder {
     fun build(template: NodeTemplate, port: Int): String = build(template.outboundJson, port)
 
     /**
-     * Same, from the raw outbound JSON. Exposed so the mapping layer can be tested without building a
-     * [NodeTemplate] first.
+     * Same, from the raw outbound JSON - **internal**, on purpose.
+     *
+     * A node's outbound is credential material, and the same reasoning that keeps it inside a
+     * [NodeTemplate] keeps this overload out of the public API: production code outside this module
+     * builds a config from the opaque template and cannot hand in raw credential JSON. Tests, the
+     * mapper (PR-D) and the on-device contract probe live here, so they keep access.
      */
-    fun build(outboundJson: String, port: Int): String {
+    internal fun build(outboundJson: String, port: Int): String {
         require(port in 1..65535) { "port out of range: $port" }
         val outbound = parseOutbound(outboundJson)
 
@@ -124,11 +128,11 @@ object XrayConfigBuilder {
         // single node was expected; the core would accept the shape but the wrong node could win.
         if (outbound.containsKey("outbounds")) throw invalid()
 
-        if (outbound.string("protocol") != OUTBOUND_PROTOCOL) throw invalid()
+        if (outbound.strictString("protocol") != OUTBOUND_PROTOCOL) throw invalid()
         val settings = outbound["settings"] as? JsonObject ?: throw invalid()
 
         val streamSettings = outbound["streamSettings"] as? JsonObject ?: throw invalid()
-        if (streamSettings.string("security") != OUTBOUND_SECURITY) throw invalid()
+        if (streamSettings.strictString("security") != OUTBOUND_SECURITY) throw invalid()
 
         // Only the flat `settings.port` that libXray actually emits is range-checked, and only when
         // it is there. There is deliberately no compatibility branch for any other shape: the AAR SHA

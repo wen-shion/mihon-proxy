@@ -143,21 +143,42 @@ internal object XrayExchange {
 
 // Top-level rather than members of [XrayExchange] so the rest of the package can use them as
 // extensions without importing an object member.
+//
+// All of them are strict: a field the contract types as a string, a boolean or an integer is only
+// readable as that type, and never as whatever a primitive's text content happens to parse into.
+// The callers turn the null into a classified failure, which is the point - a contract break must
+// not be able to look like a normal reading.
 
-internal fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+/**
+ * A JSON string, and nothing that merely reads as one.
+ *
+ * `contentOrNull` alone would accept a number or a boolean, so a field the contract defines as a
+ * string would take a wrong type as a value.
+ */
+internal fun JsonObject.strictString(key: String): String? =
+    (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 /** A field the contract defines as a JSON boolean. The caller turns a null into a failure. */
 internal fun JsonObject.boolean(key: String): Boolean? = this[key].asStrictBoolean()
 
 /**
- * A JSON boolean, and nothing that merely parses as one.
+ * An array of JSON integers, and nothing that merely parses as one.
  *
- * `booleanOrNull` alone also accepts the *string* `"true"`, so a field the contract defines as a
- * boolean would take a wrong type as a value. Every caller here turns the null into a classified
- * failure instead, which is the point: a contract break must not look like a normal reading.
+ * `intOrNull` alone accepts the *string* `"10809"`, and a `mapNotNull` over the elements would
+ * silently drop one it could not read - both of which let a contract break look like a shorter
+ * answer. A null here means the field is not a usable integer array, and there is no partial list.
  */
+internal fun JsonObject.strictInts(key: String): List<Int>? {
+    val array = this[key] as? JsonArray ?: return null
+    val values = ArrayList<Int>(array.size)
+    for (element in array) {
+        values += element.asStrictInt() ?: return null
+    }
+    return values
+}
+
 private fun JsonElement?.asStrictBoolean(): Boolean? =
     (this as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
 
-internal fun JsonObject.ints(key: String): List<Int> =
-    (this[key] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.intOrNull } ?: emptyList()
+private fun JsonElement?.asStrictInt(): Int? =
+    (this as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull

@@ -344,13 +344,104 @@ class XrayAdapterTest {
         }
     }
 
+    /**
+     * The version is a string and nothing else.
+     *
+     * `contentOrNull` would happily read a number or a boolean as its text, which is how a contract
+     * drift turns into a `String` the caller cannot tell from a real version. Every wrong type is a
+     * failure, and none of them is rendered.
+     */
     @Test
-    fun `freePort returns the first advertised port and asks for two`(): Unit = runBlocking {
+    fun `version refuses a response whose version is not a string`(): Unit = runBlocking {
+        listOf(
+            """{"success":true,"data":{}}""",
+            """{"success":true,"data":{"version":null}}""",
+            """{"success":true,"data":{"version":26.9}}""",
+            """{"success":true,"data":{"version":1}}""",
+            """{"success":true,"data":{"version":true}}""",
+            """{"success":true,"data":{"version":{}}}""",
+            """{"success":true,"data":{"version":["26.9.9"]}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(responses = mapOf(XrayMethod.Version to response))
+                val failure = shouldThrow<XrayException> { adapter(invoker).version() }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+                failure.renderings().none { it.contains("26.9") } shouldBe true
+            }
+        }
+    }
+
+    @Test
+    fun `freePort returns the first advertised port and asks for exactly one`(): Unit = runBlocking {
         val invoker = RecordingInvoker(
             responses = mapOf(XrayMethod.FreePorts to """{"success":true,"data":{"ports":[10808,10809]}}"""),
         )
         adapter(invoker).freePort() shouldBe 10808
         invoker.calls shouldContainExactly listOf(XrayMethod.FreePorts)
+        // One port per call: the runtime asks again when it needs another, rather than holding a
+        // spare that was picked before it was needed.
+        invoker.payloads.single() shouldBe """{"count":1}"""
+    }
+
+    /**
+     * A `ports` field that is not a strict integer array is a failure, not a shorter list.
+     *
+     * `intOrNull` accepts the string `"10809"`, and a `mapNotNull` over the elements silently drops
+     * one it cannot read - so a broken response used to look like fewer ports. There is no partial
+     * success: one bad element makes the whole call a failure.
+     */
+    @Test
+    fun `freePort refuses a ports field that is not a strict integer array`(): Unit = runBlocking {
+        listOf(
+            """{"success":true,"data":{}}""",
+            """{"success":true,"data":{"ports":{}}}""",
+            """{"success":true,"data":{"ports":10808}}""",
+            """{"success":true,"data":{"ports":"10808"}}""",
+            """{"success":true,"data":{"ports":[10808,{}]}}""",
+            """{"success":true,"data":{"ports":[10808,null]}}""",
+            """{"success":true,"data":{"ports":[10808,"10809"]}}""",
+            """{"success":true,"data":{"ports":[10808,true]}}""",
+            """{"success":true,"data":{"ports":[10808,10808.5]}}""",
+            """{"success":true,"data":{"ports":[]}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(responses = mapOf(XrayMethod.FreePorts to response))
+                val failure = shouldThrow<XrayException> { adapter(invoker).freePort() }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
+    }
+
+    @Test
+    fun `freePort refuses a port outside the valid range`(): Unit = runBlocking {
+        listOf(0, 65536, -1, 65537, 100000).forEach { port ->
+            withClue("port=$port") {
+                val invoker = RecordingInvoker(
+                    responses = mapOf(
+                        XrayMethod.FreePorts to """{"success":true,"data":{"ports":[$port]}}""",
+                    ),
+                )
+                val failure = shouldThrow<XrayException> { adapter(invoker).freePort() }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
+    }
+
+    @Test
+    fun `freePort refuses a list whose fallback port is out of range`(): Unit = runBlocking {
+        // The head being fine is not enough: the runtime would only discover the unusable fallback
+        // at the moment it needed it.
+        listOf(
+            """{"success":true,"data":{"ports":[10808,0]}}""",
+            """{"success":true,"data":{"ports":[10808,65536]}}""",
+            """{"success":true,"data":{"ports":[10808,-1]}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(responses = mapOf(XrayMethod.FreePorts to response))
+                val failure = shouldThrow<XrayException> { adapter(invoker).freePort() }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
     }
 
     @Test
