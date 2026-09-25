@@ -23,10 +23,18 @@ import org.junit.jupiter.api.assertThrows
  */
 class XrayConfigBuilderTest {
 
+    /**
+     * The projection shape libXray actually emits (Phase 1B evidence): note `settings.address` at
+     * the top level and the REALITY key being `password`, not `publicKey`. The real core rejects a
+     * REALITY outbound without `password`, so the fixture has to match the projection to be
+     * representative - see `XrayContractProbeTest` on device.
+     */
     private val nodePayload =
         """{"protocol":"vless","tag":"tokyo-1","settings":{"address":"example.invalid","port":443,""" +
             """"id":"11111111-2222-3333-4444-555555555555","encryption":"none"},""" +
-            """"streamSettings":{"security":"reality","realitySettings":{"serverName":"example.invalid"}}}"""
+            """"streamSettings":{"network":"raw","security":"reality","realitySettings":{""" +
+            """"serverName":"example.invalid","fingerprint":"chrome",""" +
+            """"password":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","shortId":"0000"}}}"""
 
     private val template = NodeTemplate(nodePayload)
 
