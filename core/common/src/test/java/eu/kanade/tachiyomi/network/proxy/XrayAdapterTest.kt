@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Test
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * T-02 and T-03: the adapter's gates, and the mapping from native failures to categories.
@@ -22,6 +23,9 @@ class XrayAdapterTest {
     private class RecordingInvoker(
         private val responses: Map<XrayMethod, String> = emptyMap(),
         private val throwOn: XrayMethod? = null,
+        private val throwWhat: () -> Throwable = {
+            IllegalStateException("native exploded while reaching https://secret.example/node")
+        },
     ) : LibXrayInvoker {
 
         val calls = mutableListOf<XrayMethod>()
@@ -31,7 +35,7 @@ class XrayAdapterTest {
             calls += method
             payloads += payloadJson
             if (method == throwOn) {
-                throw IllegalStateException("native exploded while reaching https://secret.example/node")
+                throw throwWhat()
             }
             return responses[method] ?: """{"success":true,"data":{}}"""
         }
@@ -306,6 +310,41 @@ class XrayAdapterTest {
     }
 
     @Test
+    fun `isRunning reads both boolean values`(): Unit = runBlocking {
+        val running = RecordingInvoker(
+            responses = mapOf(XrayMethod.State to """{"success":true,"data":{"running":true}}"""),
+        )
+        val stopped = RecordingInvoker(
+            responses = mapOf(XrayMethod.State to """{"success":true,"data":{"running":false}}"""),
+        )
+        adapter(running).isRunning() shouldBe true
+        adapter(stopped).isRunning() shouldBe false
+    }
+
+    /**
+     * A response that does not say whether a core is running is a failure, not `false`.
+     *
+     * Defaulting to "not running" would let a contract break masquerade as a stopped core, and
+     * "stopped" is an ordinary, expected state for the runtime - so the break would be invisible.
+     */
+    @Test
+    fun `isRunning refuses a response that does not carry a boolean`(): Unit = runBlocking {
+        listOf(
+            """{"success":true,"data":{}}""",
+            """{"success":true,"data":{"running":"true"}}""",
+            """{"success":true,"data":{"running":1}}""",
+            """{"success":true,"data":{"running":null}}""",
+            """{"success":true,"data":{"running":{}}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(responses = mapOf(XrayMethod.State to response))
+                val failure = shouldThrow<XrayException> { adapter(invoker).isRunning() }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
+    }
+
+    @Test
     fun `freePort returns the first advertised port and asks for two`(): Unit = runBlocking {
         val invoker = RecordingInvoker(
             responses = mapOf(XrayMethod.FreePorts to """{"success":true,"data":{"ports":[10808,10809]}}"""),
@@ -321,6 +360,23 @@ class XrayAdapterTest {
         )
         val failure = shouldThrow<XrayException> { adapter(invoker).freePort() }
         failure.category shouldBe XrayErrorCategory.LocalFailure
+    }
+
+    // --------------------------------------------------------- cancellation
+
+    @Test
+    fun `a cancelled call propagates as cancellation and not as a failure`(): Unit = runBlocking {
+        val invoker = RecordingInvoker(
+            throwOn = XrayMethod.State,
+            throwWhat = { CancellationException("the caller went away") },
+        )
+        val thrown = runCatching { adapter(invoker).isRunning() }.exceptionOrNull()
+
+        // Structured concurrency: a cancelled call is not a failure. Wrapping it would turn a
+        // cancellation the caller deliberately triggered - a screen going away, a node switch
+        // cancelling in-flight work - into an ordinary failure it is expected to report.
+        (thrown is CancellationException) shouldBe true
+        (thrown is XrayException) shouldBe false
     }
 
     // ------------------------------------------------------------ conversion
@@ -353,6 +409,48 @@ class XrayAdapterTest {
         }
 
     @Test
+    fun `convertShareLinks refuses a partly malformed outbound list`(): Unit = runBlocking {
+        listOf(
+            """{"success":true,"data":{"outbounds":[{"protocol":"vless"},42]}}""",
+            """{"success":true,"data":{"outbounds":[42,{"protocol":"vless"}]}}""",
+            """{"success":true,"data":{"outbounds":[{"protocol":"vless"},null]}}""",
+            """{"success":true,"data":{"outbounds":["a string"]}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(
+                    responses = mapOf(XrayMethod.ConvertShareLinks to response),
+                )
+                val failure = shouldThrow<XrayException> {
+                    adapter(invoker).convertShareLinks("vless://node")
+                }
+                // The whole response is unusable, not just the bad entry: a silently shortened list
+                // would drop nodes for no stated reason, and the dropped ones could be the working
+                // ones. There is no partial success.
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
+    }
+
+    @Test
+    fun `convertShareLinks refuses a missing or non-array outbounds field`(): Unit = runBlocking {
+        listOf(
+            """{"success":true,"data":{}}""",
+            """{"success":true,"data":{"outbounds":{}}}""",
+            """{"success":true,"data":{"outbounds":"vless://node"}}""",
+        ).forEach { response ->
+            withClue(response) {
+                val invoker = RecordingInvoker(
+                    responses = mapOf(XrayMethod.ConvertShareLinks to response),
+                )
+                val failure = shouldThrow<XrayException> {
+                    adapter(invoker).convertShareLinks("vless://node")
+                }
+                failure.category shouldBe XrayErrorCategory.LocalFailure
+            }
+        }
+    }
+
+    @Test
     fun `convertShareLinks sends the age key only when one is provided`(): Unit = runBlocking {
         val invoker = RecordingInvoker(
             responses = mapOf(
@@ -364,20 +462,5 @@ class XrayAdapterTest {
         adapter.convertShareLinks("AGE-ENCRYPTED", ageSecretKey = "AGE-SECRET-KEY-1")
         invoker.payloads[0]!!.contains("secretKey") shouldBe false
         invoker.payloads[1]!!.contains("AGE-SECRET-KEY-1") shouldBe true
-    }
-}
-
-/**
- * Every way a throwable can be rendered: its `toString()`, its message, its type, and the printed
- * stack trace (which walks the cause chain itself). A redaction regression can hide in any of them.
- */
-private fun Throwable.renderings(): List<String> {
-    val chain = generateSequence(this) { it.cause }.toList()
-    return buildList {
-        addAll(chain.map { it.toString() })
-        addAll(chain.map { it.message ?: "" })
-        addAll(chain.map { it.javaClass.name })
-        add(stackTraceToString())
-        add(chain.last().stackTraceToString())
     }
 }

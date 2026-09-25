@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * The proxy layer's only view of the native core.
@@ -104,8 +105,16 @@ internal class RealXrayAdapter(
         Unit
     }
 
+    /**
+     * Whether a core is running in this process.
+     *
+     * A missing or non-boolean `running` field is a [XrayErrorCategory.LocalFailure], not `false`.
+     * Defaulting to "not running" would let a contract break masquerade as a stopped core, and the
+     * runtime treats "stopped" as a normal, expected state - so the failure would be silent.
+     */
     override suspend fun isRunning(): Boolean = withContext(io) {
-        request(XrayMethod.State, null).boolean(XrayExchange.KEY_RUNNING) ?: false
+        request(XrayMethod.State, null).boolean(XrayExchange.KEY_RUNNING)
+            ?: throw XrayException(XrayErrorCategory.LocalFailure)
     }
 
     override suspend fun convertShareLinks(text: String, ageSecretKey: String?): List<NodeTemplate> =
@@ -125,7 +134,13 @@ internal class RealXrayAdapter(
 
             val outbounds = request(XrayMethod.ConvertShareLinks, payload)[XrayExchange.KEY_OUTBOUNDS]
                 as? JsonArray ?: throw XrayException(XrayErrorCategory.LocalFailure)
-            outbounds.mapNotNull { it as? JsonObject }.map { outbound -> NodeTemplate(outbound.toString()) }
+            // Every entry has to be an outbound, or none of them are usable: a partially converted
+            // subscription would offer the user a node list that is missing entries for no stated
+            // reason, and the missing ones could be exactly the nodes that work.
+            outbounds.map { element ->
+                val outbound = element as? JsonObject ?: throw XrayException(XrayErrorCategory.LocalFailure)
+                NodeTemplate(outbound.toString())
+            }
         }
 
     /**
@@ -183,6 +198,11 @@ internal class RealXrayAdapter(
         val response = try {
             invoker.invoke(method, payloadJson)
         } catch (error: XrayException) {
+            throw error
+        } catch (error: CancellationException) {
+            // Structured concurrency: a cancelled call is not a failure. Wrapping it would turn a
+            // cancellation the caller deliberately triggered - a screen going away, a node switch
+            // cancelling in-flight work - into an ordinary failure it is expected to report.
             throw error
         } catch (error: Throwable) {
             // Deliberately not `error` as the cause: a JNI or parser failure can quote the endpoint or

@@ -1,8 +1,13 @@
 package eu.kanade.tachiyomi.network.proxy
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import libXray.LibXray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,6 +61,29 @@ class XrayContractProbeTest {
         assertEquals(XrayErrorCategory.ConfigValidationFailed, category)
     }
 
+    /**
+     * The structural gate reads one shape only: a flat `settings.address` / `settings.port`.
+     *
+     * There is deliberately no compatibility branch for the nested `vnext` form, so this is where a
+     * schema drift has to show up. If an AAR upgrade changes what the converter emits, this fails and
+     * the parser is revisited on purpose - rather than the change being absorbed silently by a
+     * parser written for a shape nobody has run.
+     */
+    @Test
+    fun theConverterEmitsTheFlatSettingsShapeTheParserReads(): Unit = runBlocking {
+        val response = LibXray.invoke(
+            """{"apiVersion":3,"method":"convertShareLinksToXrayJson","payload":""" +
+                """{"text":${quote(VLESS_SHARE_LINK)}}}""",
+        )
+        val outbounds = XrayExchange.data(response)[XrayExchange.KEY_OUTBOUNDS] as JsonArray
+        val settings = (outbounds.single() as JsonObject)["settings"] as JsonObject
+
+        assertNotNull("the converter stopped emitting a flat settings.address", settings["address"])
+        assertNotNull("the converter stopped emitting a flat settings.port", settings["port"])
+        assertNotNull("the converter stopped emitting the id", settings["id"])
+        assertNull("the converter switched to the nested vnext form", settings["vnext"])
+    }
+
     private fun testXray(outboundJson: String): String {
         val config = XrayConfigBuilder.build(outboundJson, 10808)
         return LibXray.invoke(
@@ -78,6 +106,12 @@ class XrayContractProbeTest {
         }
 
     private companion object {
+        /** A syntactically complete VLESS + REALITY link; `.113.10` is TEST-NET-3, not routable. */
+        const val VLESS_SHARE_LINK =
+            "vless://00000000-0000-0000-0000-000000000000@203.0.113.10:443" +
+                "?security=reality&encryption=none&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+                "&fp=chrome&type=tcp&sni=www.example.com#spike-synthetic-node"
+
         /** Exactly what libXray's converter emits for a vless:// link (Phase 1B evidence). */
         const val PROJECTION_OUTBOUND =
             """{"protocol":"vless","settings":{"address":"203.0.113.10","encryption":"none",""" +

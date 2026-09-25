@@ -3,13 +3,14 @@ package eu.kanade.tachiyomi.network.proxy
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * The libXray `invoke` contract: one JSON envelope in, one JSON envelope out.
@@ -56,22 +57,57 @@ internal object XrayExchange {
     /**
      * Returns the `data` object of a successful response.
      *
-     * Throws [XrayException] when the envelope reports a failure, when it cannot be parsed at all, or
-     * when a success carries no data.
+     * The shape extraction is total: nothing a malformed or contract-violating envelope can throw -
+     * a parser error, a `ClassCastException`, an NPE off a null field - reaches the caller. The two
+     * outcomes are deliberately different:
+     *
+     * * **Not JSON at all** is [XrayErrorCategory.MalformedJson] - the core did not answer in the
+     *   protocol.
+     * * **Valid JSON that violates the pinned envelope** is [XrayErrorCategory.LocalFailure]. That
+     *   covers `success` being anything but a boolean, `error` not being a string on a failure
+     *   envelope, `data` being neither an object nor absent, and a missing response entirely. None of
+     *   these are failures the core *reported*; they are disagreements about the contract, and
+     *   classifying them as a remote failure would invite the runtime to retry or to fall back.
+     *
+     * Neither the raw response nor the native error text is ever attached to the exception.
      */
     fun data(response: String?): JsonObject {
-        val envelope = try {
-            response?.let { json.parseToJsonElement(it) }
-        } catch (error: SerializationException) {
-            throw XrayException(XrayErrorCategory.MalformedJson, error.sanitisedCause())
-        } as? JsonObject ?: throw XrayException(XrayErrorCategory.LocalFailure)
-
-        val succeeded = envelope["success"]?.jsonPrimitive?.booleanOrNull ?: false
-        if (!succeeded) {
-            throw XrayException(categorise(envelope["error"]?.jsonPrimitive?.contentOrNull))
+        val parsed = response?.let { text ->
+            try {
+                json.parseToJsonElement(text)
+            } catch (error: SerializationException) {
+                throw XrayException(XrayErrorCategory.MalformedJson, error.sanitisedCause())
+            }
         }
-        return envelope["data"] as? JsonObject ?: JsonObject(emptyMap())
+        val envelope = parsed as? JsonObject ?: throw XrayException(XrayErrorCategory.LocalFailure)
+
+        // `asStrictBoolean` on purpose: `success` must be a JSON boolean. An object, an array, the
+        // literal null, an absent key and the *string* "true" are all contract violations, and none
+        // of them may be read as "not succeeded" - that would let a broken envelope look like a
+        // normal failure the runtime is expected to act on.
+        val succeeded = envelope["success"].asStrictBoolean()
+            ?: throw XrayException(XrayErrorCategory.LocalFailure)
+
+        if (!succeeded) {
+            throw XrayException(categorise(errorText(envelope["error"])))
+        }
+
+        return when (val data = envelope["data"]) {
+            null, is JsonNull -> JsonObject(emptyMap())
+            is JsonObject -> data
+            else -> throw XrayException(XrayErrorCategory.LocalFailure)
+        }
     }
+
+    /**
+     * The `error` field of a failure envelope, which the pinned contract emits as a string.
+     *
+     * Anything else - absent, an object, an array, a number, the literal null - yields null, which
+     * [categorise] maps to [XrayErrorCategory.LocalFailure]. The point is that a malformed envelope
+     * cannot be talked into a *specific* category by shaping its `error` field.
+     */
+    private fun errorText(element: JsonElement?): String? =
+        (element as? JsonPrimitive)?.takeIf { it.isString }?.content
 
     /**
      * Turns a native error string into a category. The text itself is never propagated: it can name
@@ -110,7 +146,18 @@ internal object XrayExchange {
 
 internal fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
-internal fun JsonObject.boolean(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
+/** A field the contract defines as a JSON boolean. The caller turns a null into a failure. */
+internal fun JsonObject.boolean(key: String): Boolean? = this[key].asStrictBoolean()
+
+/**
+ * A JSON boolean, and nothing that merely parses as one.
+ *
+ * `booleanOrNull` alone also accepts the *string* `"true"`, so a field the contract defines as a
+ * boolean would take a wrong type as a value. Every caller here turns the null into a classified
+ * failure instead, which is the point: a contract break must not look like a normal reading.
+ */
+private fun JsonElement?.asStrictBoolean(): Boolean? =
+    (this as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
 
 internal fun JsonObject.ints(key: String): List<Int> =
     (this[key] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.intOrNull } ?: emptyList()

@@ -175,31 +175,39 @@ class XrayConfigBuilderTest {
         }
     }
 
-    /**
-     * libXray's projection writes a flat `settings.port`; Xray's own schema uses
-     * `settings.vnext[0].port`. Both are read so an AAR upgrade that switches between them cannot
-     * start rejecting every node.
-     */
     @Test
-    fun `both shapes of a declared outbound port are read`() {
+    fun `the flat settings port libXray emits is range-checked`() {
         XrayConfigBuilder.build(
             """{"protocol":"vless","settings":{"address":"example.invalid","port":443},""" +
                 """"streamSettings":{"security":"reality"}}""",
             10808,
         )
-        XrayConfigBuilder.build(
-            """{"protocol":"vless","settings":{"vnext":[{"address":"example.invalid","port":443}]},""" +
-                """"streamSettings":{"security":"reality"}}""",
-            10808,
-        )
         val failure = assertThrows<XrayException> {
             XrayConfigBuilder.build(
-                """{"protocol":"vless","settings":{"vnext":[{"address":"a","port":70000}]},""" +
+                """{"protocol":"vless","settings":{"address":"example.invalid","port":70000},""" +
                     """"streamSettings":{"security":"reality"}}""",
                 10808,
             )
         }
         failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+    }
+
+    /**
+     * The parser reads one shape only.
+     *
+     * A nested `vnext` list is not what libXray's converter emits, so nothing here parses it: the
+     * outbound passes the structural gate and `testXray` is left to judge it. Carrying a
+     * compatibility branch for a shape the pinned AAR never produces would mean maintaining a second
+     * parser for an unverified schema - and a drift would then be absorbed silently instead of
+     * failing. `XrayContractProbeTest` asserts the shape the real converter emits, on the device.
+     */
+    @Test
+    fun `a nested vnext port is not parsed`() {
+        XrayConfigBuilder.build(
+            """{"protocol":"vless","settings":{"vnext":[{"address":"a","port":70000}]},""" +
+                """"streamSettings":{"security":"reality"}}""",
+            10808,
+        )
     }
 
     @Test

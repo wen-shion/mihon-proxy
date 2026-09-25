@@ -3,7 +3,6 @@ package eu.kanade.tachiyomi.network.proxy
 import eu.kanade.tachiyomi.network.proxy.model.NodeTemplate
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -126,31 +125,20 @@ object XrayConfigBuilder {
         if (outbound.containsKey("outbounds")) throw invalid()
 
         if (outbound.string("protocol") != OUTBOUND_PROTOCOL) throw invalid()
-        if (outbound["settings"] !is JsonObject) throw invalid()
+        val settings = outbound["settings"] as? JsonObject ?: throw invalid()
 
         val streamSettings = outbound["streamSettings"] as? JsonObject ?: throw invalid()
         if (streamSettings.string("security") != OUTBOUND_SECURITY) throw invalid()
 
-        outbound.declaredNodePort()?.let { port ->
-            if (port !in 1..65535) throw invalid()
-        }
+        // Only the flat `settings.port` that libXray actually emits is range-checked, and only when
+        // it is there. There is deliberately no compatibility branch for any other shape: the AAR SHA
+        // is pinned, an upgrade goes through a contract review, and a schema drift has to fail a test
+        // rather than be absorbed by a parser written for a shape nobody has run. Whether the outbound
+        // is legal at all is settled by the unavoidable `testXray`.
+        val nodePort = (settings["port"] as? JsonPrimitive)?.intOrNull
+        if (nodePort != null && nodePort !in 1..65535) throw invalid()
 
         return outbound
-    }
-
-    /**
-     * The node's port, wherever libXray put it.
-     *
-     * libXray's own projection writes a flat `settings.address` / `settings.port`; Xray's schema uses
-     * `settings.vnext[0].port`. Both are read so an AAR upgrade that switches between them cannot
-     * start rejecting every node, and the check is skipped when neither is present - anything this
-     * layer does not model is the core's business, not ours.
-     */
-    private fun JsonObject.declaredNodePort(): Int? {
-        val settings = this["settings"] as? JsonObject ?: return null
-        (settings["port"] as? JsonPrimitive)?.intOrNull?.let { return it }
-        val vnext = settings["vnext"] as? JsonArray ?: return null
-        return ((vnext.firstOrNull() as? JsonObject)?.get("port") as? JsonPrimitive)?.intOrNull
     }
 
     private fun invalid(): Nothing = throw XrayException(XrayErrorCategory.ConfigValidationFailed)
