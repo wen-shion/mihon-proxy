@@ -160,6 +160,9 @@ internal fun JsonObject.strictString(key: String): String? =
 /** A field the contract defines as a JSON boolean. The caller turns a null into a failure. */
 internal fun JsonObject.boolean(key: String): Boolean? = this[key].asStrictBoolean()
 
+/** A field the contract defines as a JSON integer. The caller turns a null into a failure. */
+internal fun JsonObject.strictInt(key: String): Int? = this[key].asStrictInt()
+
 /**
  * An array of JSON integers, and nothing that merely parses as one.
  *
@@ -179,5 +182,5 @@ internal fun JsonObject.strictInts(key: String): List<Int>? {
 private fun JsonElement?.asStrictBoolean(): Boolean? =
     (this as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
 
-private fun JsonElement?.asStrictInt(): Int? =
+internal fun JsonElement?.asStrictInt(): Int? =
     (this as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull

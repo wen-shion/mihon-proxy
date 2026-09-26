@@ -193,6 +193,30 @@ class XrayConfigBuilderTest {
     }
 
     /**
+     * A port that is present has to be a JSON integer.
+     *
+     * The lenient read would take the string `"443"` as a port and let the payload through the range
+     * check - a contract break wearing a value, which is exactly what the strict accessors exist to
+     * stop. Absent is still fine: the core decides, as it does for everything else this layer does
+     * not model.
+     */
+    @Test
+    fun `an outbound whose port is present but not an integer is rejected`() {
+        listOf("\"443\"", "443.5", "null", "true").forEach { raw ->
+            withClue("port=$raw") {
+                val failure = assertThrows<XrayException> {
+                    XrayConfigBuilder.build(
+                        """{"protocol":"vless","settings":{"address":"example.invalid","port":$raw},""" +
+                            """"streamSettings":{"security":"reality"}}""",
+                        10808,
+                    )
+                }
+                failure.category shouldBe XrayErrorCategory.ConfigValidationFailed
+            }
+        }
+    }
+
+    /**
      * The parser reads one shape only.
      *
      * A nested `vnext` list is not what libXray's converter emits, so nothing here parses it: the

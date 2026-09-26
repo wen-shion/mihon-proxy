@@ -160,6 +160,9 @@ class XrayAdapterTest {
             ),
             "inbound udp enabled" to config(inbounds = "[${socks("127.0.0.1", "noauth", "true", "10808")}]"),
             "inbound port out of range" to config(inbounds = "[${socks("127.0.0.1", "noauth", "false", "0")}]"),
+            "inbound port is a string" to config(
+                inbounds = "[${socks("127.0.0.1", "noauth", "false", "\"10808\"")}]",
+            ),
             "no outbound" to config(outbounds = "[]"),
             "two outbounds" to config(outbounds = "[$nodePayload,$nodePayload]"),
             "freedom outbound" to config(outbounds = "[${outbound("freedom", "reality")}]"),

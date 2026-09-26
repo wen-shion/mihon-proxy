@@ -7,7 +7,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.intOrNull
 
 /**
  * Builds the runtime config handed to libXray.
@@ -135,12 +134,16 @@ object XrayConfigBuilder {
         if (streamSettings.strictString("security") != OUTBOUND_SECURITY) throw invalid()
 
         // Only the flat `settings.port` that libXray actually emits is range-checked, and only when
-        // it is there. There is deliberately no compatibility branch for any other shape: the AAR SHA
-        // is pinned, an upgrade goes through a contract review, and a schema drift has to fail a test
-        // rather than be absorbed by a parser written for a shape nobody has run. Whether the outbound
-        // is legal at all is settled by the unavoidable `testXray`.
-        val nodePort = (settings["port"] as? JsonPrimitive)?.intOrNull
-        if (nodePort != null && nodePort !in 1..65535) throw invalid()
+        // it is there. A present port has to be a JSON integer: the lenient read would take the
+        // string "443" as a port, which is a contract break wearing a value. There is deliberately no
+        // compatibility branch for any other shape: the AAR SHA is pinned, an upgrade goes through a
+        // contract review, and a schema drift has to fail a test rather than be absorbed by a parser
+        // written for a shape nobody has run. Whether the outbound is legal at all is settled by the
+        // unavoidable `testXray`.
+        settings["port"]?.let { raw ->
+            val nodePort = raw.asStrictInt() ?: throw invalid()
+            if (nodePort !in 1..65535) throw invalid()
+        }
 
         return outbound
     }

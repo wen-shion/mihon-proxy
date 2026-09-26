@@ -10,7 +10,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.intOrNull
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -189,7 +188,7 @@ internal class RealXrayAdapter(
         val inbound = inbounds[0] as? JsonObject ?: throw invalid()
         if (inbound.strictString("protocol") != XrayConfigBuilder.INBOUND_PROTOCOL) throw invalid()
         if (inbound.strictString("listen") != XrayConfigBuilder.LOOPBACK_HOST) throw invalid()
-        val inboundPort = (inbound["port"] as? JsonPrimitive)?.intOrNull
+        val inboundPort = inbound.strictInt("port")
         if (inboundPort == null || inboundPort !in 1..65535) throw invalid()
         val inboundSettings = inbound["settings"] as? JsonObject ?: throw invalid()
         if (inboundSettings.strictString("auth") != XrayConfigBuilder.INBOUND_AUTH) throw invalid()
@@ -239,7 +238,3 @@ internal class RealXrayAdapter(
         const val FREEPORTS_PAYLOAD = """{"count":1}"""
     }
 }
-
-/** Declared so the builder can be used from tests and from the runtime through one type. */
-internal fun RealXrayAdapter.buildConfig(template: NodeTemplate, port: Int): String =
-    XrayConfigBuilder.build(template, port)
