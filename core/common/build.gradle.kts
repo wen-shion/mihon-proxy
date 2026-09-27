@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.quickJs)
 
     testImplementation(libs.bundles.test)
+    testImplementation(libs.kotlinx.coroutines.test)
     testRuntimeOnly(libs.junit.platform.launcher)
 
     // The libXray contract can only be exercised against the real libgojni.so, which needs a device
