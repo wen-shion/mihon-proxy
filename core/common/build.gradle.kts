@@ -8,6 +8,10 @@ plugins {
 
 android {
     namespace = "eu.kanade.tachiyomi.core.common"
+
+    defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 }
 
 kotlin {
@@ -59,6 +63,12 @@ dependencies {
 
     testImplementation(libs.bundles.test)
     testRuntimeOnly(libs.junit.platform.launcher)
+
+    // The libXray contract can only be exercised against the real libgojni.so, which needs a device
+    // or an emulator; the debug ABI set includes x86_64 for exactly this reason.
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
 
     implementation(libs.metro.runtime)
 }
